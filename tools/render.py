@@ -119,21 +119,38 @@ def nasal_variants(notes, suffix=''):
     return out
 
 
-def write_vsqx(path, notes, end, pc=0, name='Test', comp_id=None):
+def write_vsqx(path, notes, end, pc=0, name='Test', comp_id=None, control_changes=None,
+               note_velocities=None, note_openings=None, note_portamentos=None, voice_params=None, allow_growl=False):
+    """Write a V4 VSQX, including native ``<cc>`` curves and per-note VEL/OPE values.
+
+    Singer-level BRE/BRI/CLE/GEN offsets use signed values; track curves use their own
+    0..127 (or PIT/PBS) domains. VEL and OPE are serialized into each note, not ``<cc>``.
+    """
+    from u2v.voiceparams import (normalize_control_changes, normalize_note_controls,
+                                 normalize_voice_profile)
+    controls = normalize_control_changes(control_changes, allow_growl=allow_growl)
+    note_controls = normalize_note_controls(note_velocities, note_openings)
+    portamento_notes = {int(pos): bool(value) for pos, value in (note_portamentos or {}).items()}
+    profile = normalize_voice_profile(voice_params)
     note_xml = []
     for t, dur, n, lyric, ph in notes:
+        velocity = note_controls['VEL'].get(t, 64)
+        opening = note_controls['OPE'].get(t, 127)
+        portamento = 1 if portamento_notes.get(t, False) else 0
         note_xml.append(
-            '<note><t>%d</t><dur>%d</dur><n>%d</n><v>64</v><y><![CDATA[%s]]></y><p lock="1"><![CDATA[%s]]></p>'
+            '<note><t>%d</t><dur>%d</dur><n>%d</n><v>%d</v><y><![CDATA[%s]]></y><p lock="1"><![CDATA[%s]]></p>'
             '<nStyle><v id="accent">50</v><v id="bendDep">0</v><v id="bendLen">0</v><v id="decay">50</v>'
-            '<v id="fallPort">0</v><v id="opening">127</v><v id="risePort">0</v><v id="vibLen">0</v>'
-            '<v id="vibType">0</v></nStyle></note>' % (t, dur, n, lyric, ph))
+            '<v id="fallPort">%d</v><v id="opening">%d</v><v id="risePort">%d</v><v id="vibLen">0</v>'
+            '<v id="vibType">0</v></nStyle></note>' % (t, dur, n, velocity, lyric, ph, portamento, opening, portamento))
+    cc_xml = ''.join('<cc><id>%s</id><pos>%d</pos><value>%d</value></cc>' % (ident, pos, value)
+                     for ident, pos, value in controls)
     xml = ('<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
            '<vsq4 xmlns="http://www.yamaha.co.jp/vocaloid/schema/vsq4/" '
            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
            'xsi:schemaLocation="http://www.yamaha.co.jp/vocaloid/schema/vsq4/ vsq4.xsd">'
            '<vender><![CDATA[Yamaha corporation]]></vender><version><![CDATA[4.0.0.3]]></version>'
            '<vVoiceTable><vVoice><bs>0</bs><pc>%d</pc><id><![CDATA[%s]]></id><name><![CDATA[%s]]></name>'
-           '<vPrm><bre>0</bre><bri>0</bri><cle>0</cle><gen>0</gen><ope>0</ope></vPrm></vVoice></vVoiceTable>'
+           '<vPrm><bre>%d</bre><bri>%d</bri><cle>%d</cle><gen>%d</gen><ope>0</ope></vPrm></vVoice></vVoiceTable>'
            '<mixer><masterUnit><oDev>0</oDev><rLvl>0</rLvl><vol>0</vol></masterUnit>'
            '<vsUnit><tNo>0</tNo><iGin>0</iGin><sLvl>-898</sLvl><sEnable>0</sEnable><m>0</m><s>0</s>'
            '<pan>64</pan><vol>0</vol></vsUnit>'
@@ -149,11 +166,12 @@ def write_vsqx(path, notes, end, pc=0, name='Test', comp_id=None):
            '<name><![CDATA[VOCALOID2 Compatible Style]]></name><version><![CDATA[3.0.0.1]]></version></sPlug>'
            '<pStyle><v id="accent">50</v><v id="bendDep">8</v><v id="bendLen">0</v><v id="decay">50</v>'
            '<v id="fallPort">0</v><v id="opening">127</v><v id="risePort">0</v></pStyle>'
-           '<singer><t>0</t><bs>0</bs><pc>%d</pc></singer>%s<plane>0</plane></vsPart></vsTrack>'
+           '<singer><t>0</t><bs>0</bs><pc>%d</pc></singer>%s%s<plane>0</plane></vsPart></vsTrack>'
            '<monoTrack></monoTrack><stTrack></stTrack>'
            '<aux><id><![CDATA[AUX_VST_HOST_CHUNK_INFO]]></id>'
            '<content><![CDATA[VlNDSwAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=]]></content></aux></vsq4>'
-           % (pc, comp_id or '%016d' % (pc + 1), name, end, pc, ''.join(note_xml)))
+           % (pc, comp_id or '%016d' % (pc + 1), name, profile['breathiness'], profile['brightness'],
+              profile['clearness'], profile['gender_factor'], end, pc, cc_xml, ''.join(note_xml)))
     with open(path, 'w', encoding='utf-8') as f:
         f.write(xml)
 
@@ -296,12 +314,17 @@ def read_slots(editor_dir=INSTALLED):
     return out
 
 
-def render(pc, out_wav, song='test', pitch=64, editor_dir=INSTALLED, log=print, suffix=''):
+def render(pc, out_wav, song='test', pitch=64, editor_dir=INSTALLED, log=print, suffix='',
+           control_changes=None, note_velocities=None, note_openings=None, note_portamentos=None,
+           voice_params=None, allow_growl=False):
     """Render the test song with dev-editor voice number pc. Returns (wav, msd)."""
     slot = [s for s in read_slots(editor_dir) if s[0] == pc][0]
     vsqx = os.path.splitext(out_wav)[0] + '.vsqx'
     notes, end = build_notes(song, pitch, suffix=suffix)
-    write_vsqx(vsqx, notes, end, pc=pc, comp_id=slot[1], name=slot[4])
+    write_vsqx(vsqx, notes, end, pc=pc, comp_id=slot[1], name=slot[4],
+               control_changes=control_changes, note_velocities=note_velocities,
+               note_openings=note_openings, note_portamentos=note_portamentos,
+               voice_params=voice_params, allow_growl=allow_growl)
     ed = Editor(editor_dir, log)
     try:
         ed.open(vsqx)
