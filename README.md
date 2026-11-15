@@ -1,4 +1,7 @@
-# 変換 Henkan 🎤➡️🎹
+# Best-Henkan-Approved-Fork 🎤➡️🎹
+
+> Community improvement fork of Henkan. This fork keeps the original deterministic, sample-based conversion approach and focuses on stronger analysis, safer unit selection and better joins.
+
 
 [![Release](https://img.shields.io/github/v/release/GooberNiko/Henkan)](https://github.com/GooberNiko/Henkan/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -67,8 +70,10 @@ default there. For everything else there are four more tabs, in the order you us
 | **④ V3 → V2 backport** | V3/V4 banks rewritten so VOCALOID2 can sing them |
 
 The log at the bottom shows exactly what the command line would print (drag the bar above it to resize),
-warnings in yellow. The status bar shows how long the current step has taken. Ctrl+L clears the log, F5
-rescans the bank, and the window remembers its size, tab and settings.
+warnings in yellow. The status bar shows how long the current step has taken. The source-bank row includes an
+**OTO Inspector** for unmapped aliases and broken WAV references; the Convert and Build tabs include an
+**Audio QA** report and a conversion **Preflight / Validate** action. Ctrl+L clears the log, F5 rescans the bank,
+and the window remembers its size, tab and settings.
 
 ## 🤔 What it actually does
 
@@ -84,12 +89,22 @@ rescans the bank, and the window remembers its size, tab and settings.
 | ん before b / t / k sounded wrong | Every ん flavour (`N\ m n N N' J m'`) gets held-note loops and the units VOCALOID asks for, plus `[Sil N\]` for phrases that start on ん |
 | A unit buzzes like a bee 🐝 | After building, it **reads back the pitch the DBTool analysed** for every unit; if one is an octave off (= buzzy half-pitch undertone), it fixes it and rebuilds. Automatically. While you eat the sandwich |
 | One recording just renders badly no matter what | `--avoid "g' i"` rebuilds that unit from other recordings instead |
-| Notes jump in volume | Every unit is scaled to the bank's usual vowel level |
+| Notes jump in volume | Units are matched using perceptually weighted vowel levels, with peak headroom protection |
+| A boundary is uncertain | Acoustic confidence combines spectral, voicing, transient and energy cues; weak evidence keeps the appropriate OTO timing prior |
+| An OTO line has a comma alias or nested/case-mismatched WAV path | Parses the final five timing fields separately, preserves the alias text, and resolves relative WAV paths component-by-component |
+| Different `prefix.map` files exist in different appends | Applies each map only to its own folder and descendants instead of leaking suffix rules across unrelated appends |
+| A converter cut is based on the wrong OTO marker | Uses the fixed-region/consonant marker for C→V, overlap for V→C, and preutterance as note-onset context/fallback |
+| The DBTool silently skips a bad sidecar | Preflights `.wav`, `.trans`, `.seg`, `.asN`, dictionary references and orphan files before launch, then verifies `.dat` / `.tree` output |
+| Pitch jumps register | The F0 tracker searches multiple period candidates per frame instead of following one global pitch anchor |
+| One recording is damaged | Candidate ranking considers clipping, DC offset, rough SNR and spectral-health indicators |
+| A held vowel seam changes colour | Stationary joins check both waveform alignment and spectral-envelope compatibility |
 | Your bank is a formant synth with no silence anywhere | Fine. `Sil` is only taken where it's actually silent |
 
 The DBTool's file formats were worked out from the DBTool itself — nerd details in [FORMATS.md](FORMATS.md).
 
-For the signal-processing pipeline, analysis windows, boundary detection, pitch tracking, cache limits, and known audio-analysis limitations, see [docs/AUDIO_ANALYSIS.md](docs/AUDIO_ANALYSIS.md).
+For the signal-processing pipeline, confidence analysis, pitch tracking, recording-health scoring, normalization, cache limits, and known audio-analysis limitations, see [docs/AUDIO_ANALYSIS.md](docs/AUDIO_ANALYSIS.md).
+
+For OTO interpretation, phoneme-boundary priors, converted-folder preflight, DBTool post-build checks, and GUI QA tools, see [docs/CONVERTER_DB_BUILD.md](docs/CONVERTER_DB_BUILD.md).
 
 ## 🌬️ Extras & transitions (breaths, rolled r, end breaths, anything)
 

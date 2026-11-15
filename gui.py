@@ -177,7 +177,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         from u2v import __version__
-        self.title('変換 Henkan ' + __version__)
+        self.title('Best Henkan Approved Fork — UTAU → VOCALOID ' + __version__)
         self.geometry('960x900')
         self.minsize(820, 640)
         self.runner = Runner(self)
@@ -254,15 +254,26 @@ class App(tk.Tk):
         style = ttk.Style(self)
         if 'vista' in style.theme_names():
             style.theme_use('vista')
+        elif 'clam' in style.theme_names():
+            style.theme_use('clam')
         style.configure('Head.TLabel', font=(UI_FONT_BOLD, 10))
         style.configure('Sec.TLabel', font=(UI_FONT_BOLD, 10), foreground=INK)
         style.configure('Hint.TLabel', foreground=HINT)
         style.configure('Info.TLabel', foreground=INFO)
         style.configure('Rec.TLabel', foreground='#15803d')
         style.configure('Splice.TLabel', foreground='#b45309')
-        style.configure('Accent.TButton', font=(UI_FONT_BOLD, 9), padding=(16, 5))
-        style.configure('Big.TButton', padding=(12, 4))
-        style.configure('TNotebook.Tab', padding=(12, 4))
+        style.configure('Accent.TButton', font=(UI_FONT_BOLD, 9), padding=(16, 7),
+                        foreground='#ffffff', background=ACCENT)
+        style.map('Accent.TButton', background=[('active', '#b91f55'), ('disabled', '#d7a0b3')],
+                  foreground=[('disabled', '#f5e9ed')])
+        style.configure('Big.TButton', padding=(12, 6))
+        style.configure('TButton', padding=(9, 5))
+        style.configure('TEntry', padding=(5, 4))
+        style.configure('TCombobox', padding=(5, 3))
+        style.configure('TNotebook.Tab', padding=(14, 7), font=(UI_FONT_BOLD, 9))
+        style.configure('TLabelframe', padding=(8, 5))
+        style.configure('TLabelframe.Label', font=(UI_FONT_BOLD, 9), foreground=INK)
+        style.configure('TProgressbar', thickness=9)
 
         style.configure('Step.TLabel', font=(UI_FONT_BOLD, 13), foreground=INK)
         style.configure('Num.TLabel', font=(UI_FONT_BOLD, 13), foreground=ACCENT)
@@ -281,6 +292,7 @@ class App(tk.Tk):
         ttk.Entry(src, textvariable=self.v['bank']).grid(row=0, column=1, sticky='ew', padx=6)
         ttk.Button(src, text='Browse…', command=self.pick_bank).grid(row=0, column=2)
         ttk.Button(src, text='Rescan', command=self.scan).grid(row=0, column=3, padx=(6, 0))
+        ttk.Button(src, text='OTO Inspector…', command=self.show_oto_report).grid(row=0, column=4, padx=(6, 0))
         ttk.Label(src, textvariable=self.info, style='Info.TLabel').grid(row=1, column=1, columnspan=3,
                                                                          sticky='w', padx=6, pady=(2, 0))
         ttk.Label(src, text='Phonetic dictionary', style='Head.TLabel').grid(row=2, column=0, sticky='w',
@@ -610,9 +622,9 @@ class App(tk.Tk):
                  font=('Yu Gothic UI', 22, 'bold')).pack(side='left', padx=(16, 8), pady=6)
         t = tk.Frame(h, background=INK)
         t.pack(side='left')
-        tk.Label(t, text='Henkan', background=INK, foreground='#ffffff',
+        tk.Label(t, text='Best Henkan Approved Fork', background=INK, foreground='#ffffff',
                  font=(UI_FONT_BOLD, 14)).pack(anchor='w')
-        tk.Label(t, text='UTAU bank → VOCALOID singer DB → installed voicebank   ·   V3/V4 → VOCALOID2',
+        tk.Label(t, text='UTAU voicebank conversion  ·  phoneme-aware DB preparation  ·  VOCALOID packaging',
                  background=INK, foreground=INK_SOFT, font=(UI_FONT, 9)).pack(anchor='w')
         tk.Label(h, text='v' + __version__, background=INK, foreground=INK_SOFT,
                  font=(UI_FONT, 9)).pack(side='right', padx=16)
@@ -743,6 +755,7 @@ class App(tk.Tk):
         ttk.Button(b, text='Validate', command=self.validate).pack(side='left', padx=6)
         ttk.Button(b, text='Open report', command=lambda: self.open_file(os.path.join(self.v['out'].get(),
                                                                                        'report.txt'))).pack(side='left')
+        ttk.Button(b, text='Audio QA', command=self.audio_qa).pack(side='left', padx=6)
         ttk.Button(b, text='Open folder', command=lambda: self.open_file(self.v['out'].get())).pack(side='left', padx=6)
 
         for k in ('splice', 'fill', 'normalize', 'derive', 'extend_dict', 'merge_groups', 'triphones', 'extras', 'custom_extras', 'evec_map', 'evec_vowels', 'evec_phonemes', 'colors', 'brighten', 'avoid'):
@@ -818,6 +831,8 @@ class App(tk.Tk):
         b.grid(row=3, column=0, sticky='w')
         ttk.Button(b, text='Build DB', style='Accent.TButton', command=self.build).pack(side='left')
         ttk.Button(b, text='Convert + Build', command=lambda: self.convert(then=self.build)).pack(side='left', padx=6)
+        ttk.Button(b, text='Preflight / Validate', command=self.validate).pack(side='left', padx=6)
+        ttk.Button(b, text='Audio QA', command=self.audio_qa).pack(side='left')
         return f
 
     def _tab_pack(self, nb):
@@ -1216,6 +1231,83 @@ class App(tk.Tk):
         if p:
             self.v['dbtool'].set(os.path.normpath(p))
 
+    def audio_qa(self):
+        """Run the standalone converted-folder acoustic QA report."""
+        out = self.v['out'].get().strip()
+        if not os.path.isdir(out):
+            return messagebox.showwarning('Audio QA', 'Choose an existing converted output folder first.')
+        if not os.path.isfile(os.path.join(out, 'manifest.csv')):
+            return messagebox.showwarning('Audio QA', 'No manifest.csv was found. Convert the bank first.')
+        script = os.path.join(ROOT, 'tools', 'qa.py')
+        self.runner.start(self._py(script, out), 'Audio QA')
+
+    def show_oto_report(self):
+        """Show an actionable OTO/alias report without starting a conversion."""
+        bank = self.v['bank'].get().strip()
+        if not os.path.isdir(bank):
+            return messagebox.showwarning('OTO Inspector', 'Choose a UTAU voicebank folder first.')
+        from u2v import oto, phonemes as P
+        diagnostics = []
+        try:
+            entries = oto.read_bank(bank, diagnostics=diagnostics)
+        except Exception as ex:  # noqa: BLE001
+            return messagebox.showerror('OTO Inspector', 'Could not read the voicebank:\n%s' % ex)
+        lang = self.detected_lang or P.detect_language([e.alias for e in entries]) or 'ja'
+        group_counts = {}
+        unknown = []
+        for entry in entries:
+            group_counts[entry.group] = group_counts.get(entry.group, 0) + 1
+            mapped = P.extra_alias(entry.alias) or P.alias_to_phonemes(entry.alias, lang)
+            if not mapped:
+                unknown.append((entry.raw_alias, entry.alias, entry.wav))
+        lines = [
+            'BEST HENKAN — OTO INSPECTOR',
+            'Bank: %s' % bank,
+            'Detected language: %s' % lang,
+            'Usable OTO entries: %d' % len(entries),
+            'OTO warnings: %d' % len(diagnostics),
+            'Unmapped aliases: %d' % len(unknown),
+            '', 'GROUPS']
+        lines.extend('  %-35s %d entries' % (name or '(main)', count)
+                     for name, count in sorted(group_counts.items()))
+        lines += ['', 'UNMAPPED ALIASES (first 100)']
+        lines.extend('  %s  ->  %s  [%s]' % (raw, alias, os.path.basename(wav))
+                     for raw, alias, wav in unknown[:100])
+        if not unknown:
+            lines.append('  none')
+        lines += ['', 'OTO WARNINGS (first 100)']
+        lines.extend('  ' + message for message in diagnostics[:100])
+        if not diagnostics:
+            lines.append('  none')
+        if len(unknown) > 100 or len(diagnostics) > 100:
+            lines += ['', 'Display truncated. Full conversion diagnostics are also written to the conversion log.']
+        top = tk.Toplevel(self)
+        top.title('OTO Inspector — Best Henkan')
+        top.geometry('900x620')
+        top.minsize(680, 420)
+        top.transient(self)
+        frame = ttk.Frame(top, padding=10)
+        frame.pack(fill='both', expand=True)
+        ttk.Label(frame, text='OTO / alias preflight', style='Head.TLabel').pack(anchor='w')
+        ttk.Label(frame, text='Review unmapped aliases and malformed or missing WAV references before conversion.',
+                  style='Hint.TLabel').pack(anchor='w', pady=(2, 8))
+        body = ttk.Frame(frame)
+        body.pack(fill='both', expand=True)
+        view = tk.Text(body, wrap='none', font=('Consolas', 9), padx=8, pady=6)
+        ys = ttk.Scrollbar(body, orient='vertical', command=view.yview)
+        xs = ttk.Scrollbar(frame, orient='horizontal', command=view.xview)
+        view.configure(yscrollcommand=ys.set, xscrollcommand=xs.set)
+        view.pack(side='left', fill='both', expand=True)
+        ys.pack(side='right', fill='y')
+        xs.pack(fill='x')
+        view.insert('1.0', '\n'.join(lines))
+        view.configure(state='disabled')
+        foot = ttk.Frame(frame)
+        foot.pack(fill='x', pady=(8, 0))
+        ttk.Button(foot, text='Copy report', command=lambda: (top.clipboard_clear(), top.clipboard_append('\n'.join(lines))))\
+            .pack(side='left')
+        ttk.Button(foot, text='Close', command=top.destroy).pack(side='right')
+
     def scan(self):
         """List the bank's folders/suffixes and guess its language (reads oto.ini files only)."""
         bank = self.v['bank'].get()
@@ -1226,7 +1318,8 @@ class App(tk.Tk):
         self.update_idletasks()
         try:
             from u2v import oto, phonemes as P
-            entries = oto.read_bank(bank)
+            oto_diagnostics = []
+            entries = oto.read_bank(bank, diagnostics=oto_diagnostics)
         except Exception as ex:                                    # noqa: BLE001 - show, don't crash
             self.info.set('Could not read the bank: %s' % ex)
             return
@@ -1242,8 +1335,10 @@ class App(tk.Tk):
         self.detected_lang = P.detect_language([e.alias for e in entries])
         lang = {'ja': 'Japanese', 'en': 'English'}.get(self.detected_lang, self.detected_lang)
         n_v = len(P.v_aliases([e.alias for e in entries])) if self.detected_lang == 'ja' else 0
-        self.info.set('%d oto entries in %d folder/suffix group(s), looks %s%s' % (
-            len(entries), len(count), lang, ', %d ヴ recordings' % n_v if n_v else ''))
+        self.info.set('%d oto entries in %d folder/suffix group(s), looks %s%s%s' % (
+            len(entries), len(count), lang, ', %d ヴ recordings' % n_v if n_v else '',
+            ', %d OTO warning(s) — see OTO Inspector' % len(oto_diagnostics) if oto_diagnostics else ''))
+        self._last_oto_diagnostics = oto_diagnostics
         if self.detected_lang in ('ja', 'en'):
             self._find_dict(self.detected_lang)
         if self.detected_lang == 'en':
@@ -1845,8 +1940,10 @@ class App(tk.Tk):
                                           'Set "Phonetic dictionary" at the top and press Convert again.')
         if not db:
             return messagebox.showwarning('Build', 'Enter where to create the DB (folder\\Name).')
-        if os.path.exists(db + '.tree'):
-            return messagebox.showwarning('Build', '%s already exists. Pick a new name or folder.' % db)
+        collisions = [p for p in (db, db + '.dat', db + '.tree') if os.path.exists(p)]
+        if collisions:
+            return messagebox.showwarning('Build', 'A DB artifact already exists:\n%s\n\nPick a new name or remove the old partial DB.'
+                                          % '\n'.join(collisions))
         if not os.path.exists(self.v['dbtool'].get()):
             return messagebox.showwarning('Build', 'VocaloidDBTool3.exe not found. Set its path.')
         self._save()
