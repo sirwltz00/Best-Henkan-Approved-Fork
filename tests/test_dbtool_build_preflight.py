@@ -1,4 +1,5 @@
 """Ensure unsafe/invalid inputs are rejected before opening the Windows DBTool."""
+import json
 import os
 import sys
 import tempfile
@@ -58,6 +59,8 @@ class BuildPreflight(unittest.TestCase):
             os.makedirs(seg)
             self.folder(seg)
             d = self.dictionary(root)
+            with open(os.path.join(seg, 'vqm_samples.json'), 'w', encoding='utf-8') as fh:
+                json.dump({'format_version': 1, 'samples': [{'index': 0}, {'index': 3}]}, fh)
             final = os.path.join(root, 'db', 'Singer')
             logs = []
 
@@ -80,6 +83,10 @@ class BuildPreflight(unittest.TestCase):
             self.assertEqual(result, [])
             self.assertTrue(os.path.isfile(final + '.dat'))
             self.assertTrue(os.path.isfile(final + '.tree'))
+            carried = final + '.henkan-vqm.json'
+            self.assertTrue(os.path.isfile(carried))
+            with open(carried, encoding='utf-8') as fh:
+                self.assertEqual([sample['index'] for sample in json.load(fh)['samples']], [0, 3])
             self.assertTrue(any('database artifacts verified' in line for line in logs), logs)
 
     def test_existing_db_collision_is_rejected(self):

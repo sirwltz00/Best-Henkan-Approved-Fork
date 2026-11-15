@@ -153,5 +153,75 @@ class Converting(unittest.TestCase):
         self.assertGreater(zcr('ch'), 3000)
 
 
+class GrowlWavConversion(Converting):
+    def test_imported_growl_wav_becomes_one_grw_stationary(self):
+        import csv
+        growl_path = os.path.join(self.tmp.name, 'growled-aaaa.wav')
+        t = np.arange(int(SR * 1.5), dtype=np.float32) / SR
+        # A deterministic, roughened tone is only a test fixture, not a growl synthesis algorithm.
+        tone = 0.35 * np.sin(2 * np.pi * 180 * t) + 0.04 * np.sin(2 * np.pi * 730 * t)
+        audio.write_wav(growl_path, tone.astype(np.float32), SR)
+        out = os.path.join(self.tmp.name, 'growl-out')
+        c = convert.Converter(self.bank, out, lang='ja', dict_path=self.dpath,
+                              growl_wav=growl_path, log=QUIET)
+        manifest = c.run()
+        grw_rows = [row for row in manifest if row[1] == 'stationary' and row[2] == 'Grw']
+        self.assertEqual(len(grw_rows), 1)
+        self.assertIn('Grw', c.dict_out)
+        grw_base = os.path.join(out, grw_rows[0][0])
+        self.assertTrue(os.path.isfile(grw_base + '.wav'))
+        self.assertTrue(os.path.isfile(grw_base + '.seg'))
+        self.assertTrue(os.path.isfile(grw_base + '.trans'))
+        self.assertTrue(os.path.isfile(grw_base + '.as0'))
+        phonemes, directives = dbtool_io.read_trans(grw_base + '.trans')
+        self.assertEqual(phonemes, ['Sil', 'Grw', 'Sil'])
+        self.assertEqual(directives, [(['Grw'], 1)])
+        segments, stationary, _revised = dbtool_io.read_seg(grw_base + '.seg')
+        self.assertTrue(stationary)
+        self.assertEqual([row[0] for row in segments], ['Sil', 'Grw', 'Sil'])
+        with open(os.path.join(out, 'manifest.csv'), encoding='utf-8-sig') as f:
+            written = list(csv.DictReader(f))
+        self.assertEqual(sum(1 for row in written if row['unit'] == 'Grw'), 1)
+
+    def test_commercial_vqm_folder_imports_all_numbered_samples_and_preserves_indexes(self):
+        import csv
+        import json
+        root = os.path.join(self.tmp.name, 'CommercialSinger')
+        vqm = os.path.join(root, 'vqm')
+        for folder in ('art', 'sta', 'vqm'):
+            os.makedirs(os.path.join(root, folder), exist_ok=True)
+        t = np.arange(int(SR * 1.2), dtype=np.float32) / SR
+        for index, hz in ((0, 170), (3, 235)):
+            tone = 0.28 * np.sin(2 * np.pi * hz * t) + 0.035 * np.sin(2 * np.pi * 690 * t)
+            audio.write_wav(os.path.join(vqm, 'vqm_%d.wav' % index), tone.astype(np.float32), SR)
+        out = os.path.join(self.tmp.name, 'commercial-vqm-out')
+        c = convert.Converter(self.bank, out, lang='ja', dict_path=self.dpath,
+                              growl_wav=root, log=QUIET)
+        manifest = c.run()
+        rows = [row for row in manifest if row[1] == 'stationary' and row[2] == 'Grw']
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(os.path.isfile(os.path.join(out, row[0] + '.wav')) for row in rows))
+        self.assertEqual([row[4] for row in rows], ['Imported VQM sample 0', 'Imported VQM sample 3'])
+        with open(os.path.join(out, 'vqm_samples.json'), encoding='utf-8') as f:
+            mapping = json.load(f)
+        self.assertEqual([sample['index'] for sample in mapping['samples']], [0, 3])
+        self.assertEqual([sample['source_file'] for sample in mapping['samples']],
+                         ['vqm_0.wav', 'vqm_3.wav'])
+        with open(os.path.join(out, 'manifest.csv'), encoding='utf-8-sig') as f:
+            written = list(csv.DictReader(f))
+        self.assertEqual(sum(1 for row in written if row['unit'] == 'Grw'), 2)
+
+    def test_growl_wav_requires_a_real_wav_and_sustained_duration(self):
+        with self.assertRaisesRegex(ValueError, 'does not exist'):
+            convert.Converter(self.bank, os.path.join(self.tmp.name, 'missing'), lang='ja',
+                              dict_path=self.dpath, growl_wav=os.path.join(self.tmp.name, 'absent.wav'),
+                              log=QUIET)
+        short = os.path.join(self.tmp.name, 'short.wav')
+        audio.write_wav(short, np.zeros(int(SR * 0.5), dtype=np.float32), SR)
+        with self.assertRaisesRegex(ValueError, '0.50'):
+            convert.Converter(self.bank, os.path.join(self.tmp.name, 'short-out'), lang='ja',
+                              dict_path=self.dpath, growl_wav=short, log=QUIET)
+
+
 if __name__ == '__main__':
     unittest.main()
