@@ -22,7 +22,10 @@ import stat
 import struct
 import subprocess
 import tempfile
-import winreg
+try:
+    import winreg
+except ImportError:  # Keep non-registry helpers usable off Windows.
+    winreg = None
 
 from . import ddi
 
@@ -143,6 +146,8 @@ def _map_free(voicedir, bank):
 
 # ---------------------------------------------------------------- registry
 def _open(path):
+    if winreg is None:
+        raise OSError('Windows registry access is only available on Windows')
     return winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path, 0, winreg.KEY_READ | winreg.KEY_WOW64_32KEY)
 
 
