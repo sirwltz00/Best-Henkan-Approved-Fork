@@ -221,5 +221,99 @@ class ConverterReliability(unittest.TestCase):
             self.assertGreater(len(second[0]), 0)
 
 
+class AdvancedAnalysis(unittest.TestCase):
+    def test_detailed_pitch_tracker_follows_a_large_register_change(self):
+        low = sine(140.0, seconds=0.4, amplitude=0.2)
+        high = sine(520.0, seconds=0.4, amplitude=0.2)
+        x = np.concatenate((low, high))
+        times, pitches, confidence = audio.f0_track_detailed(x, SR, 0.08, 0.75)
+        early = pitches[(times >= 0.10) & (times <= 0.32)]
+        late = pitches[(times >= 0.50) & (times <= 0.72)]
+        self.assertAlmostEqual(float(np.nanmedian(early)), 140.0, delta=4.0)
+        self.assertAlmostEqual(float(np.nanmedian(late)), 520.0, delta=12.0)
+        self.assertGreater(float(np.nanmedian(confidence)), 0.5)
+
+    def test_voicing_confidence_separates_tone_from_broadband_noise(self):
+        tone = audio.Features(sine(220.0, seconds=0.5), SR)
+        rng = np.random.default_rng(91)
+        noise = audio.Features((0.2 * rng.standard_normal(SR // 2)).astype(np.float32), SR)
+        self.assertGreater(float(np.median(tone.voicing_confidence)), 0.8)
+        self.assertLess(float(np.median(noise.voicing_confidence)), 0.5)
+        self.assertEqual(tone.mfcc.shape[1], 13)
+        self.assertTrue(np.isfinite(tone.spectral_centroid).all())
+        self.assertTrue(np.isfinite(tone.spectral_flatness).all())
+
+    def test_boundary_confidence_rewards_an_acoustic_transition(self):
+        rng = np.random.default_rng(7)
+        hiss = (0.12 * rng.standard_normal(round(0.20 * SR))).astype(np.float32)
+        x = np.concatenate((sine(220.0, seconds=0.20), hiss))
+        ft = audio.Features(x, SR)
+        detected = audio.boundary_confidence(ft, 0.20, 0.15, 0.25, detected=True)
+        fallback = audio.boundary_confidence(ft, 0.20, detected=False)
+        self.assertGreater(detected, fallback)
+        self.assertGreaterEqual(detected, 0.0)
+        self.assertLessEqual(detected, 1.0)
+
+    def test_quality_analysis_flags_clipping_and_reports_finite_metrics(self):
+        clean = sine(220.0, seconds=0.5)
+        clipped = np.clip(clean * 8.0, -1.0, 1.0)
+        q_clean = audio.analyze_audio_quality(clean, SR)
+        q_clipped = audio.analyze_audio_quality(clipped, SR)
+        self.assertGreater(q_clean['score'], q_clipped['score'])
+        self.assertGreater(q_clipped['clipped_fraction'], 0.05)
+        for key in ('peak_dbfs', 'rms_dbfs', 'noise_floor_dbfs', 'snr_estimate_db',
+                    'spectral_flatness', 'score'):
+            self.assertTrue(np.isfinite(q_clean[key]), key)
+        self.assertIn('possible clipping', q_clipped['warnings'])
+
+    def test_perceptual_level_is_consistent_and_frequency_weighted(self):
+        low = sine(100.0, seconds=0.3, amplitude=0.2)
+        mid = sine(1000.0, seconds=0.3, amplitude=0.2)
+        low_db = audio.perceptual_level_db(low, SR)
+        mid_db = audio.perceptual_level_db(mid, SR)
+        self.assertGreater(mid_db, low_db)
+        self.assertAlmostEqual(audio.perceptual_level_db(mid, SR), mid_db, places=5)
+
+    def test_lpc_formant_estimator_finds_resonant_vowel_regions(self):
+        sr = 16000
+        n = sr // 2
+        rng = np.random.default_rng(0)
+        source = rng.standard_normal(n)
+        signal = np.zeros(n, dtype=np.float64)
+        for frequency, bandwidth, gain in ((500.0, 80.0, 1.0),
+                                           (1500.0, 120.0, 0.8),
+                                           (2500.0, 150.0, 0.5)):
+            radius = np.exp(-np.pi * bandwidth / sr)
+            angle = 2.0 * np.pi * frequency / sr
+            resonated = np.zeros(n, dtype=np.float64)
+            for i in range(2, n):
+                resonated[i] = (source[i] + 2.0 * radius * np.cos(angle) * resonated[i - 1]
+                                - radius * radius * resonated[i - 2])
+            signal += gain * resonated
+        formants = audio.estimate_formants(signal.astype(np.float32), sr, 0.10, 0.40)
+        np.testing.assert_allclose(formants[:3], [500.0, 1500.0, 2500.0], rtol=0.08, atol=50.0)
+
+    def test_unit_ranking_penalizes_clipped_sources(self):
+        from types import SimpleNamespace
+        from u2v.convert import Clip, Converter
+
+        clean = sine(220.0, seconds=0.5, amplitude=0.2)
+        clipped = np.clip(clean * 8.0, -1.0, 1.0)
+
+        def candidate(path):
+            entry = SimpleNamespace(wav=path, dup=0)
+            return Clip(entry, ['a', 'i'], 0.0, 0.5, [0.25], [True],
+                        boundary_confidence=[0.9])
+
+        def scorer(signal):
+            converter = Converter.__new__(Converter)
+            converter._quality_cache = {}
+            converter.load = lambda _path: (signal, audio.Features(signal, SR))
+            converter.typical = None
+            return converter.unit_score(candidate('take.wav'), 0)
+
+        self.assertGreater(scorer(clean), scorer(clipped))
+
+
 if __name__ == '__main__':
     unittest.main()

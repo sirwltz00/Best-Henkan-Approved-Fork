@@ -53,6 +53,10 @@ class ReadBank(unittest.TestCase):
         es = self.read({'v': [('a.wav', 'a あ'), ('b.wav', 'i あ'), ('c.wav', 'u あ')]})
         self.assertEqual(sorted(e.alias for e in es), ['a あ', 'i あ', 'u あ'])
 
+    def test_common_lowercase_phoneme_tail_is_not_stripped_as_a_group(self):
+        es = self.read({'main': [('a.wav', '- ka'), ('b.wav', 'a ka'), ('c.wav', 'i ka')]})
+        self.assertEqual(sorted(e.alias for e in es), ['- ka', 'a ka', 'i ka'])
+
     def test_prefix_map_suffix_is_pitch(self):
         es = self.read({'A4': [('a.wav', 'かF'), ('b.wav', 'a かF')], 'G4': [('a.wav', 'か'), ('b.wav', 'a か')]},
                        prefix_map='C5\t\tF\nC4\t\t\n')
@@ -93,6 +97,76 @@ class ReadBank(unittest.TestCase):
             es = oto.read_bank(root)
             self.assertEqual(len(es), 1)
             self.assertTrue(os.path.exists(es[0].wav))
+
+    def test_alias_may_contain_commas(self):
+        with tempfile.TemporaryDirectory() as root:
+            open(os.path.join(root, 'take.wav'), 'wb').close()
+            with open(os.path.join(root, 'oto.ini'), 'w', encoding='utf-8') as f:
+                f.write('take.wav=ka, alternate,100,50,-200,30,10\n')
+            entries = oto.read_bank(root)
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0].raw_alias, 'ka, alternate')
+
+    def test_sibling_prefix_map_does_not_classify_another_append_as_that_pitch(self):
+        with tempfile.TemporaryDirectory() as root:
+            for folder in ('AppendA', 'AppendB'):
+                d = os.path.join(root, folder)
+                os.makedirs(d)
+                with open(os.path.join(d, 'oto.ini'), 'w', encoding='utf-8') as f:
+                    f.write('a.wav=kaF,100,50,-200,30,10\n')
+                    f.write('b.wav=kiF,100,50,-200,30,10\n')
+                    f.write('c.wav=kuF,100,50,-200,30,10\n')
+                for wav in ('a.wav', 'b.wav', 'c.wav'):
+                    open(os.path.join(d, wav), 'wb').close()
+            with open(os.path.join(root, 'AppendA', 'prefix.map'), 'w', encoding='utf-8') as f:
+                f.write('F4\t\tF\n')
+            entries = oto.read_bank(root)
+            append_a = [e for e in entries if e.group.startswith('AppendA')]
+            append_b = [e for e in entries if e.group.startswith('AppendB')]
+            self.assertTrue(append_a and append_b)
+            self.assertEqual({e.pitch for e in append_a}, {'F'})
+            self.assertEqual({e.pitch for e in append_b}, {''})
+
+    def test_prefix_map_is_scoped_to_its_append(self):
+        with tempfile.TemporaryDirectory() as root:
+            for folder in ('AppendA', 'AppendB'):
+                d = os.path.join(root, folder)
+                os.makedirs(d)
+                open(os.path.join(d, 'take.wav'), 'wb').close()
+                with open(os.path.join(d, 'oto.ini'), 'w', encoding='utf-8') as f:
+                    f.write('take.wav=kaF,100,50,-200,30,10\n')
+            with open(os.path.join(root, 'AppendA', 'prefix.map'), 'w', encoding='utf-8') as f:
+                f.write('C4\t\tF\n')
+            entries = oto.read_bank(root)
+            by_folder = {e.group.split('/')[0]: e for e in entries}
+            self.assertEqual(by_folder['AppendA'].alias, 'ka')
+            self.assertEqual(by_folder['AppendB'].alias, 'kaF')
+
+    def test_nested_relative_wav_path_resolves_case_insensitively(self):
+        with tempfile.TemporaryDirectory() as root:
+            d = os.path.join(root, 'append')
+            os.makedirs(os.path.join(d, 'Samples'))
+            open(os.path.join(d, 'Samples', 'TAKE.WAV'), 'wb').close()
+            with open(os.path.join(d, 'oto.ini'), 'w', encoding='utf-8') as f:
+                f.write('samples\\take.wav=ka,100,50,-200,30,10\n')
+            diagnostics = []
+            entries = oto.read_bank(root, diagnostics=diagnostics)
+            self.assertEqual(len(entries), 1, diagnostics)
+            self.assertTrue(entries[0].wav.endswith(os.path.join('Samples', 'TAKE.WAV')))
+
+    def test_bad_oto_rows_are_reported_and_skipped(self):
+        with tempfile.TemporaryDirectory() as root:
+            open(os.path.join(root, 'ok.wav'), 'wb').close()
+            with open(os.path.join(root, 'oto.ini'), 'w', encoding='utf-8') as f:
+                f.write('ok.wav=ka,100,50,-200,30,10\n')
+                f.write('missing.wav=ki,100,50,-200,30,10\n')
+                f.write('ok.wav=bad,not-a-number,50,-200,30,10\n')
+            diagnostics = []
+            entries = oto.read_bank(root, diagnostics=diagnostics)
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(len(diagnostics), 2)
+            self.assertTrue(any('WAV file not found' in item for item in diagnostics))
+            self.assertTrue(any('non-numeric' in item for item in diagnostics))
 
 
 class Phonemes(unittest.TestCase):
