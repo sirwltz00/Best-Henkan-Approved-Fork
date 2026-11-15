@@ -220,16 +220,25 @@ Windows permission prompt:
    `install.bat`/`uninstall.bat` (same shape as VVD Editor's) launched with a UAC prompt — read
    them in the package folder first if you like.
 
-**Import VQM (Growl samples)** is an optional Pack-tab feature for VOCALOID4. Select a licensed
-VOCALOID4 Growl-compatible donor bank's `.ddi` (Henkan finds the matching `.ddb`) or its containing
-folder. Henkan copies the donor's native VQM `FRM2`/`SND ` payloads, rebases their offsets into the
-new package, validates every reference, and only then writes the `Growl = 1` capability line into
-the output `.vvd`. Without verified VQM data, Growl is left disabled instead of being advertised
-without samples. The imported growl recordings come from the donor bank; they are not generated
-from the UTAU recordings and may carry the donor's timbre. Use only data you are licensed to use,
-and do not redistribute proprietary donor-bank samples.
+**Import VQM samples** is an optional Convert-tab feature for VOCALOID4. Official commercial voicebanks
+commonly expose three sibling folders — `art/`, `sta/` and `vqm/` — with the numbered audio samples in
+`vqm/` named `vqm_0.wav`, `vqm_1.wav`, and so on. Point Henkan at the commercial bank root, the `vqm/`
+folder itself, or one WAV. Henkan discovers all `vqm_N.wav` files in numeric order, validates each
+sustained growled-vowel recording (ideally about 1–2 seconds), and adds each as its own unsuffixed `Grw`
+stationary sample. The original numeric `N` is carried through the DBTool build and preserved in the native
+VQM record during Pack. The sibling `art/` and `sta/` folders are not imported: Henkan still builds its
+articulation and stationary data from the UTAU bank being converted.
 
-CLI example: `pack "<DB folder>/<Name>" --import-vqm "<donor>.ddi"`.
+During Pack, Henkan copies the first 100 `FRM2` analysis frames plus each sample's `SND ` audio chunk into
+the destination DDB and writes native VQM records with rebased pointers. It does not import a donor DDB or
+synthesize a growl from an ordinary vowel. The output `.vvd` advertises Growl only after all VQM pointers
+validate. `Grw` is an internal packing helper, not a lyric users need to type. Native GWL is V4-only.
+
+Choose the source in **Convert → Extras & transitions → Import VQM samples**. CLI examples:
+`convert "path/to/UTAU" "output" --vqm-dir "path/to/commercial-voicebank"` or
+`convert "path/to/UTAU" "output" --growl-wav "path/to/vqm_0.wav"`, then run `build` and `pack` as usual.
+The imported audio is resampled to mono 44.1 kHz for DBTool input; its timbre is not artificially synthesized.
+Use recordings you own or are licensed to use.
 
 Command line: `pack "<DB folder>/<Name>" [--out …] [--name …] [--compid …]` then
 `install <package> --editor "<editor folder>"` (prints the admin `.bat` to run).
@@ -271,7 +280,7 @@ python henkan.py pack "path/to/DB/Voice" --breathiness 18 --brightness 12 --clea
 The generated projects are test material; they do not alter the built voicebank database. Open them
 in the VOCALOID4 desktop editor with the target singer and compare the first baseline phrase with the
 second phrase. Older/mobile editors may ignore V4-specific curves. XSY is deliberately not generated
-without a secondary singer, and GWL should only be tested with a bank whose VQM data was imported and
+without a secondary singer, and GWL should only be tested with a V4 bank whose VQM data was built from a Growl WAV and
 validated. Parameter response still needs an actual VOCALOID4 Editor render and listening test; this
 repository's synthetic XML tests prove file structure and ranges, not that every converted bank will
 respond equally to every control.
@@ -279,7 +288,7 @@ respond equally to every control.
 GWL is different from the other controls: a `Growl = 1` line by itself is not enough. The bank needs
 its dedicated native Growl data in VQM records. Henkan used to set that line for every V4 package even
 though its packer did not include the VQM sample payloads. This fork fixes that false capability flag
-and adds the optional donor import above. Parameter availability also depends on voicebank generation
+and adds the optional one-WAV `Grw` conversion above. Parameter availability also depends on voicebank generation
 and track type. See [Yamaha's V4 parameter example](https://www.vocaloid.com/en/articles/how_to_make_tropicalhouse_vocal),
 [the VOCALOID4 Editor manual](https://www.scribd.com/document/273858725/VOCALOID4-Editor-Manual),
 and [Yamaha's generation/parameter support table](https://d2d1pbdkm53nop.cloudfront.net/en/learn/ln7007/).

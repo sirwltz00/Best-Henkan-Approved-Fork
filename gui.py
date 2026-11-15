@@ -28,7 +28,7 @@ sys.path.insert(0, ROOT)
 SAVED = ('bank', 'out', 'dict', 'lang', 'colors', 'keep', 'splice', 'fill', 'normalize', 'derive', 'extend_dict',
          'extras', 'evec_map', 'evec_phonemes', 'custom_extras', 'evec_vowels', 'v_mode', 'triphones',
          'merge_groups', 'brighten', 'avoid', 'db_name', 'db_path', 'db_lang', 'dbtool', 'dbtool_hidden',
-         'pkg_db', 'pkg_name', 'pkg_compid', 'pkg_out', 'pkg_editor', 'pkg_dest', 'pkg_devini', 'pkg_vqm_source',
+         'pkg_db', 'pkg_name', 'pkg_compid', 'pkg_out', 'pkg_editor', 'pkg_dest', 'pkg_devini', 'growl_wav',
          'pkg_breathiness', 'pkg_brightness', 'pkg_clearness', 'pkg_gender_factor',
           'v3v2_name', 'v3v2_lang', 'pitch_assignments', 'sections', 'geometry', 'tab')
 
@@ -206,7 +206,7 @@ class App(tk.Tk):
                       sections=S(value='extras'), geometry=S(), tab=S(value='0'),
                       db_name=S(), db_path=S(), db_lang=S(value='Japanese'),
                       pkg_db=S(), pkg_name=S(), pkg_compid=S(), pkg_out=S(), pkg_editor=S(),
-                      pkg_dest=S(), pkg_devini=B(value=False), pkg_vqm_source=S(),
+                      pkg_dest=S(), pkg_devini=B(value=False), growl_wav=S(),
                       pkg_breathiness=S(value='0'), pkg_brightness=S(value='0'),
                       pkg_clearness=S(value='0'), pkg_gender_factor=S(value='0'),
                       v3v2_src=S(), v3v2_name=S(), v3v2_lang=S(value='Auto'),
@@ -727,6 +727,19 @@ class App(tk.Tk):
         self._hint(s, 2, 'Any sound in the bank as a phoneme of your own: breaths, a rolled r, a laugh …\n'
                          'An alias that starts with a vowel keeps its recorded transition, so a R, i R … → hh\n'
                          'gives every vowel its own way in. Edit… shows which transitions are recorded.')
+        ttk.Label(s, text='Import VQM samples').grid(row=3, column=0, sticky='w', pady=(8, 3))
+        ttk.Entry(s, textvariable=self.v['growl_wav'], width=60).grid(
+            row=3, column=1, sticky='ew', padx=6, pady=(8, 3))
+        growl_browse = ttk.Frame(s)
+        growl_browse.grid(row=3, column=2, sticky='w', pady=(8, 3))
+        ttk.Button(growl_browse, text='Browse folder…', command=self.pick_vqm_folder).pack(side='left')
+        ttk.Button(growl_browse, text='Browse one WAV…', command=self.pick_growl_wav).pack(side='left', padx=(4, 0))
+        ttk.Button(growl_browse, text='Clear', command=lambda: self.v['growl_wav'].set('')).pack(
+            side='left', padx=(4, 0))
+        self._hint(s, 4, 'Optional: select the commercial voicebank root (art/ sta/ vqm/), the vqm/ folder, '
+                         'or one WAV. Henkan imports every numbered vqm_N.wav in numeric order and preserves '
+                         'each N in the native V4 VQM records. art/ and sta/ are not copied: those are built '
+                         'from the UTAU bank being converted.')
 
         s = self._section(r, 4, 'colours', 'Voice colours (EVEC)').body
         s.columnconfigure(1, weight=1)
@@ -849,19 +862,9 @@ class App(tk.Tk):
         self._row(g, 2, 'CompID', self.v['pkg_compid'], self.gen_compid, browse_text='Generate…')
         self._hint(g, 3, '16 capital letters/digits, unique per voicebank (checked against this PC)')
         self._row(g, 4, 'Package folder', self.v['pkg_out'], self.pick_pkg_out)
-        ttk.Label(g, text='Import VQM (Growl samples)').grid(row=5, column=0, sticky='w', pady=3)
-        ttk.Entry(g, textvariable=self.v['pkg_vqm_source'], width=60).grid(
-            row=5, column=1, sticky='ew', padx=6, pady=3)
-        vqm_browse = ttk.Frame(g)
-        vqm_browse.grid(row=5, column=2, sticky='w', pady=3)
-        ttk.Button(vqm_browse, text='Choose file…', command=self.pick_vqm_source).pack(side='left')
-        ttk.Button(vqm_browse, text='Folder…', command=self.pick_vqm_folder).pack(side='left', padx=(4, 0))
-        self._hint(g, 6, 'Optional: choose a licensed VOCALOID4 Growl-compatible donor .ddi (with its matching '
-                         '.ddb) or the folder containing the pair. This imports native VQM sample data; '
-                         'it does not synthesize growls.')
-        ttk.Label(g, text='Singer Editor voice offsets').grid(row=7, column=0, sticky='w', pady=(8, 3))
+        ttk.Label(g, text='Singer Editor voice offsets').grid(row=5, column=0, sticky='w', pady=(8, 3))
         profile = ttk.Frame(g)
-        profile.grid(row=7, column=1, columnspan=2, sticky='w', padx=6, pady=(8, 3))
+        profile.grid(row=5, column=1, columnspan=2, sticky='w', padx=6, pady=(8, 3))
         for col, (label, key) in enumerate((('BRE', 'pkg_breathiness'), ('BRI', 'pkg_brightness'),
                                             ('CLE', 'pkg_clearness'), ('GEN', 'pkg_gender_factor'))):
             cell = ttk.Frame(profile)
@@ -869,11 +872,13 @@ class App(tk.Tk):
             ttk.Label(cell, text=label).pack(side='left')
             ttk.Spinbox(cell, from_=-127, to=127, increment=1, textvariable=self.v[key], width=5).pack(
                 side='left', padx=(4, 0))
-        self._hint(g, 8, 'Signed singer-level offsets (-127..127). Zero is neutral. Opening (OPE) and Velocity '
+        self._hint(g, 6, 'Signed singer-level offsets (-127..127). Zero is neutral. Opening (OPE) and Velocity '
                          '(VEL) are note-level controls, so they are tested in the generated V4 parameter probe, '
                          'not stored as singer offsets here.')
+        self._hint(g, 7, 'If Convert contains numbered VQM WAVs, Pack turns each Grw stationary into its native VQM '
+                         'record and preserves the vqm_N index. Without imported VQM audio, Growl stays disabled.')
         b = ttk.Frame(g)
-        b.grid(row=9, column=1, sticky='w', pady=(8, 2), padx=6)
+        b.grid(row=8, column=1, sticky='w', pady=(8, 2), padx=6)
         ttk.Button(b, text='Pack voicebank', style='Accent.TButton', command=self.pack).pack(side='left')
         ttk.Button(b, text='Open package', command=lambda: self.open_file(self.package_dir())).pack(
             side='left', padx=6)
@@ -1838,6 +1843,13 @@ class App(tk.Tk):
             _colors = 'evec'
         args = ['convert', v['bank'].get(), v['out'].get(), '--lang', v['lang'].get(), '--colors', _colors,
                 '--keep', v['keep'].get()]
+        growl_wav = v['growl_wav'].get().strip()
+        if growl_wav:
+            if not os.path.exists(growl_wav):
+                raise ValueError('The selected VQM source does not exist:\n%s' % growl_wav)
+            if os.path.isfile(growl_wav) and os.path.splitext(growl_wav)[1].lower() != '.wav':
+                raise ValueError('A single VQM source file must be a .wav file; folders are also accepted.')
+            args += ['--growl-wav', growl_wav]
         if v['dict'].get():
             if not os.path.exists(v['dict'].get()):
                 raise ValueError('The phonetic dictionary file does not exist:\n%s' % v['dict'].get())
@@ -2138,18 +2150,17 @@ class App(tk.Tk):
         if d:
             self.v['pkg_out'].set(os.path.normpath(d))
 
-    def pick_vqm_source(self):
-        path = filedialog.askopenfilename(
-            title='Choose a VOCALOID4 Growl donor .ddi or .ddb',
-            filetypes=[('VOCALOID database index/data', '*.ddi *.ddb'), ('DDI index', '*.ddi'),
-                       ('DDB data', '*.ddb'), ('All files', '*.*')])
-        if path:
-            self.v['pkg_vqm_source'].set(os.path.normpath(path))
-
     def pick_vqm_folder(self):
-        path = filedialog.askdirectory(title='Choose a folder containing one matching VOCALOID4 .ddi/.ddb pair')
+        path = filedialog.askdirectory(title='Choose the VOCALOID bank root or its vqm folder')
         if path:
-            self.v['pkg_vqm_source'].set(os.path.normpath(path))
+            self.v['growl_wav'].set(os.path.normpath(path))
+
+    def pick_growl_wav(self):
+        path = filedialog.askopenfilename(
+            title='Choose one numbered VQM WAV (for example vqm_0.wav)',
+            filetypes=[('WAV audio', '*.wav'), ('All files', '*.*')])
+        if path:
+            self.v['growl_wav'].set(os.path.normpath(path))
 
     def package_dir(self):
         out, cid = self.v['pkg_out'].get(), self.v['pkg_compid'].get().strip().upper()
@@ -2229,8 +2240,6 @@ class App(tk.Tk):
             args += ['--name', self.v['pkg_name'].get()]
         if self.v['pkg_compid'].get().strip():
             args += ['--compid', self.v['pkg_compid'].get().strip().upper()]
-        if self.v['pkg_vqm_source'].get().strip():
-            args += ['--import-vqm', self.v['pkg_vqm_source'].get().strip()]
         for key, flag in (('pkg_breathiness', '--breathiness'), ('pkg_brightness', '--brightness'),
                           ('pkg_clearness', '--clearness'), ('pkg_gender_factor', '--gender-factor')):
             try:

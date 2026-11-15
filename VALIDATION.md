@@ -1,7 +1,7 @@
 # Validation record
 
-- Automated command: `python -m unittest discover -v`
-- Latest result: **201 tests run; 0 failures; 4 skipped**.
+- Automated command: `python -I -m unittest discover -s tests -v`
+- Latest result after numbered VQM import updates: **215 tests run; 0 failures; 4 skipped**.
 - The skipped cases require Windows code-page behavior or an external VOCALOID
   developer-kit sample database that was not included in the source archive.
 - Syntax check: `python -m compileall -q .` completed successfully.
@@ -10,7 +10,7 @@
   and `tools/parameter_probe.py --help`.
 
 The regression suite covers audio analysis, OTO parsing and segmentation, DBTool
-preflight/post-build validation, VQM metadata and chunk rebasing, Singer Editor
+preflight/post-build validation, single- and multi-sample `Grw` conversion, commercial `art/sta/vqm` folder discovery, VQM index preservation and chunk rebasing, Singer Editor
 voice-profile ranges, native VSQX4 `<cc>` serialization, note-level OPE/VEL,
 parameter-probe generation, and the existing converter/backport behavior.
 

@@ -101,6 +101,8 @@ def main():
     c.add_argument('--avoid', action='append', default=[], metavar='"C V"',
                    help="don't take this unit from its recording; relabel or splice it from others, "
                         "e.g. --avoid \"g' i\" when one recorded unit renders badly")
+    c.add_argument('--growl-wav', '--vqm-dir', dest='growl_wav', metavar='PATH',
+                   help='VQM source: one WAV, a vqm/ folder, or a commercial voicebank root containing art/, sta/ and vqm/; imports numbered vqm_N.wav files')
     c.add_argument('--brighten', action='append', default=[], metavar='PH=DB',
                    help="lift the treble (above 2 kHz) of a phoneme by DB, e.g. --brighten o=3 for a dull o")
     c.add_argument('--no-extend-dict', action='store_true',
@@ -124,8 +126,6 @@ def main():
     p.add_argument('--compid', help='16-char component ID (default: a fresh unique one)')
     p.add_argument('--db-version', default='4', choices=['2', '3', '4'],
                    help='editor generation to pack for (default 4; VQM Growl is V4-only)')
-    p.add_argument('--import-vqm', metavar='DONOR',
-                   help='import native VOCALOID4 Growl samples from a donor .ddi/.ddb pair or folder')
     p.add_argument('--breathiness', type=int, default=0, metavar='-127..127',
                    help='Singer Editor BRE offset (-127..127; default 0)')
     p.add_argument('--brightness', type=int, default=0, metavar='-127..127',
@@ -220,7 +220,6 @@ def main():
         try:
             package = _pack.make_package(a.db, a.out, name=a.name, compid=a.compid,
                                          db_version=a.db_version, log=print,
-                                         import_vqm=a.import_vqm,
                                          voice_params={'breathiness': a.breathiness,
                                                        'brightness': a.brightness,
                                                        'clearness': a.clearness,
@@ -307,7 +306,8 @@ def main():
                                      avoid=a.avoid, extras='none' if a.no_extras else a.extras,
                                      evec_map=a.evec_map, evec_phonemes=a.evec_phonemes,
                                      custom_extras=a.custom_extra, evec_mode=a.evec_mode, v_mode=a.v_mode,
-                                     triphones=a.triphones, group_assignments=group_assignments)
+                                     triphones=a.triphones, group_assignments=group_assignments,
+                                     growl_wav=a.growl_wav)
         except ValueError as ex:             # a bad option value (old --extras br1, a typo in a spec ...)
             print('error: %s' % ex)
             return 2

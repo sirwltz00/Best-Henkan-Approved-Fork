@@ -60,15 +60,15 @@ voicebank recordings with generated speech.
 - Added regression tests for transition-specific OTO markers, VCV boundaries, OTO edge cases and DBTool preflight/post-build verification.
 
 
-## VOCALOID4 VQM / Growl support
+## VOCALOID4 VQM / numbered commercial-bank WAV import
 
-- Added Pack-tab **Import VQM (Growl samples)** donor selection and CLI `pack --import-vqm` support.
-- Accepts a donor `.ddi`, matching `.ddb`, or a folder containing exactly one matching pair.
-- Imports the native VQM node and its referenced `FRM2`/`SND ` chunks, rebases DDB offsets, updates the DDI DBV count, and validates the final references before writing.
-- Handles the two observed VQM metadata marker widths (16-bit and 32-bit) when reading records.
-- The output `.vvd` now advertises Growl only when validated VQM sample data is present; V2/V3 packages cannot import VQM.
-- Added synthetic binary regression tests for VQM parsing, pointer rebasing, DBV count handling, replacement, and package flag gating.
-
+- The Convert-tab VQM importer accepts one WAV, a `vqm/` folder, or a commercial voicebank root containing sibling `art/`, `sta/` and `vqm/` folders.
+- It discovers `vqm_N.wav` files in numeric order and creates one internal, unsuffixed `Grw` stationary for each sample. `art/` and `sta/` are not imported; Henkan continues to build those from the UTAU source bank.
+- A `vqm_samples.json` handoff is carried beside the built DB so original numeric `N` values survive DBTool's internal stationary IDs and are written to VQM records without renumbering.
+- During Pack, each DBTool-generated `Grw` stationary contributes its first 100 `FRM2` analysis chunks and its `SND ` audio chunk to the output DDB; the native VQM block uses rebased pointers.
+- No donor DDB is read and no growl is synthesized from an ordinary vowel. Samples must supply at least 100 DBTool EpR frames; short/unusable samples fail rather than silently shifting pitch indexes.
+- The `.vvd` Growl capability line is enabled only after the VQM block and all referenced DDB chunks validate. Native VQM is VOCALOID4-only.
+- Added regression tests for commercial `art/sta/vqm` folder discovery, multiple numbered samples, source-index preservation, VQM chunk construction, FRM2/SND pointer rebasing, DBV count handling and Growl flag gating.
 
 ## VOCALOID4 voice parameters and VSQX controls
 
