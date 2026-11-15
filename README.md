@@ -220,8 +220,70 @@ Windows permission prompt:
    `install.bat`/`uninstall.bat` (same shape as VVD Editor's) launched with a UAC prompt — read
    them in the package folder first if you like.
 
+**Import VQM (Growl samples)** is an optional Pack-tab feature for VOCALOID4. Select a licensed
+VOCALOID4 Growl-compatible donor bank's `.ddi` (Henkan finds the matching `.ddb`) or its containing
+folder. Henkan copies the donor's native VQM `FRM2`/`SND ` payloads, rebases their offsets into the
+new package, validates every reference, and only then writes the `Growl = 1` capability line into
+the output `.vvd`. Without verified VQM data, Growl is left disabled instead of being advertised
+without samples. The imported growl recordings come from the donor bank; they are not generated
+from the UTAU recordings and may carry the donor's timbre. Use only data you are licensed to use,
+and do not redistribute proprietary donor-bank samples.
+
+CLI example: `pack "<DB folder>/<Name>" --import-vqm "<donor>.ddi"`.
+
 Command line: `pack "<DB folder>/<Name>" [--out …] [--name …] [--compid …]` then
 `install <package> --editor "<editor folder>"` (prints the admin `.bat` to run).
+
+### Why a VOCALOID parameter can appear but have no effect
+
+The `.vvd` entries are **static singer defaults/offsets**, not note-by-note automation or alternate
+voice recordings. Henkan now lets you set the four V4 Singer Editor voice offsets BRE, BRI, CLE and
+GEN (each signed -127..127) when packaging, or when registering a loose DB in the Developer Editor.
+Zero remains the neutral default. These values are separate from the control curves stored in a
+sequence.
+
+VOCALOID4 stores the controls in different places depending on their role:
+
+| Control | Henkan/V4 representation | What it changes |
+| --- | --- | --- |
+| BRE, BRI, CLE, GEN | Part control curves (`<cc>`) and signed Singer Editor offsets | Breath noise, brightness, clarity and formant/gender character |
+| DYN, POR, PIT, PBS | Part control curves (`<cc>`) | Dynamics, portamento timing, pitch bend and its semitone range; POR needs portamento-enabled notes |
+| OPE, VEL | Per-note `nStyle/opening` and note velocity | Mouth opening / articulation clarity and consonant length |
+| GWL | Part control curve (`<cc>`) plus native VQM sample payload | Growl; requires a compatible V4 bank with verified VQM data |
+| XSY | Part control curve (`<cc>`) | Cross-synthesis; requires a configured secondary singer |
+
+Henkan's VOCALOID4 test renderer now writes native VSQX4 `<cc>` control-change records and note-level
+OPE/VEL values instead of silently hardcoding every note to VEL 64 / OPE 127. The diagnostic tool
+`tools/parameter_probe.py` generates separate baseline-vs-parameter VSQX projects for BRE, BRI, CLE,
+GEN, DYN, POR, PIT, PBS, VEL and OPE; it can optionally add a GWL test with `--include-growl`.
+Example (using the Developer Editor's `ProgramChange` number):
+
+```bash
+python tools/parameter_probe.py 3 "parameter-probes" --editor-dir "C:/Program Files (x86)/VOCALOID4/Editor"
+```
+
+For a singer-level starting offset, for example a little breathiness and a brighter tone:
+
+```bash
+python henkan.py pack "path/to/DB/Voice" --breathiness 18 --brightness 12 --clearness 0 --gender-factor -5
+```
+
+The generated projects are test material; they do not alter the built voicebank database. Open them
+in the VOCALOID4 desktop editor with the target singer and compare the first baseline phrase with the
+second phrase. Older/mobile editors may ignore V4-specific curves. XSY is deliberately not generated
+without a secondary singer, and GWL should only be tested with a bank whose VQM data was imported and
+validated. Parameter response still needs an actual VOCALOID4 Editor render and listening test; this
+repository's synthetic XML tests prove file structure and ranges, not that every converted bank will
+respond equally to every control.
+
+GWL is different from the other controls: a `Growl = 1` line by itself is not enough. The bank needs
+its dedicated native Growl data in VQM records. Henkan used to set that line for every V4 package even
+though its packer did not include the VQM sample payloads. This fork fixes that false capability flag
+and adds the optional donor import above. Parameter availability also depends on voicebank generation
+and track type. See [Yamaha's V4 parameter example](https://www.vocaloid.com/en/articles/how_to_make_tropicalhouse_vocal),
+[the VOCALOID4 Editor manual](https://www.scribd.com/document/273858725/VOCALOID4-Editor-Manual),
+and [Yamaha's generation/parameter support table](https://d2d1pbdkm53nop.cloudfront.net/en/learn/ln7007/).
+
 
 ### 🪪 CompIDs (your bank's ID card)
 

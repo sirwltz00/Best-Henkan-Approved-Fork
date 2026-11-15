@@ -123,7 +123,17 @@ def main():
     p.add_argument('--name', help='voicebank name (default: the DB name)')
     p.add_argument('--compid', help='16-char component ID (default: a fresh unique one)')
     p.add_argument('--db-version', default='4', choices=['2', '3', '4'],
-                   help='editor generation to pack for (default 4; 2/3 drop the Growl line)')
+                   help='editor generation to pack for (default 4; VQM Growl is V4-only)')
+    p.add_argument('--import-vqm', metavar='DONOR',
+                   help='import native VOCALOID4 Growl samples from a donor .ddi/.ddb pair or folder')
+    p.add_argument('--breathiness', type=int, default=0, metavar='-127..127',
+                   help='Singer Editor BRE offset (-127..127; default 0)')
+    p.add_argument('--brightness', type=int, default=0, metavar='-127..127',
+                   help='Singer Editor BRI offset (-127..127; default 0)')
+    p.add_argument('--clearness', type=int, default=0, metavar='-127..127',
+                   help='Singer Editor CLE offset (-127..127; default 0)')
+    p.add_argument('--gender-factor', type=int, default=0, metavar='-127..127',
+                   help='Singer Editor GEN offset (-127..127; default 0)')
     n = sub.add_parser('install', help='install a packed voicebank into a VOCALOID editor')
     n.add_argument('package', help='package folder holding <CompID>/<name>.ddb/.ddi/.vvd')
     n.add_argument('--editor', help='editor folder to install into (default: auto-detect)')
@@ -135,6 +145,14 @@ def main():
     n.add_argument('--dev-ini', action='store_true',
                    help='VOCALOID4FE dev editor: register a DB_Dev.ini voice slot instead of files+registry')
     n.add_argument('--db', help='with --dev-ini: the loose built DB path (folder/Name) the slot points at')
+    n.add_argument('--breathiness', type=int, default=0, metavar='-127..127',
+                   help='with --dev-ini: Singer Editor BRE offset (-127..127)')
+    n.add_argument('--brightness', type=int, default=0, metavar='-127..127',
+                   help='with --dev-ini: Singer Editor BRI offset (-127..127)')
+    n.add_argument('--clearness', type=int, default=0, metavar='-127..127',
+                   help='with --dev-ini: Singer Editor CLE offset (-127..127)')
+    n.add_argument('--gender-factor', type=int, default=0, metavar='-127..127',
+                   help='with --dev-ini: Singer Editor GEN offset (-127..127)')
     d = sub.add_parser('compid', help="suggest or check a voicebank CompID (the bank's ID card)")
     d.add_argument('--lang', default='Japanese',
                    choices=['Japanese', 'Chinese', 'English', 'Korean', 'Spanish', 'Other'],
@@ -201,7 +219,12 @@ def main():
         from u2v import pack as _pack
         try:
             package = _pack.make_package(a.db, a.out, name=a.name, compid=a.compid,
-                                         db_version=a.db_version, log=print)
+                                         db_version=a.db_version, log=print,
+                                         import_vqm=a.import_vqm,
+                                         voice_params={'breathiness': a.breathiness,
+                                                       'brightness': a.brightness,
+                                                       'clearness': a.clearness,
+                                                       'gender_factor': a.gender_factor})
         except _pack.PackError as ex:
             print('error: %s' % ex)
             return 1
@@ -224,7 +247,9 @@ def main():
                 if not a.db:
                     print('error: --dev-ini needs --db "<built DB folder/Name>"')
                     return 2
-                _pack.write_dev_slot(ed['root'], a.db, a.name)
+                _pack.write_dev_slot(ed['root'], a.db, a.name, voice_params={
+                    'breathiness': a.breathiness, 'brightness': a.brightness,
+                    'clearness': a.clearness, 'gender_factor': a.gender_factor})
                 print('dev slot added: restart the dev editor to see it')
                 return 0
             _pack.install_package(a.package, ed, dest=a.dest, compid=a.compid, name=a.name,

@@ -58,3 +58,23 @@ voicebank recordings with generated speech.
 - Added OTO Inspector in the GUI with group counts, unmapped aliases, malformed rows and missing-WAV diagnostics.
 - Added one-click Audio QA from Convert/Build tabs, preflight/validate access from the Build tab, clearer fork branding and refreshed ttk styles.
 - Added regression tests for transition-specific OTO markers, VCV boundaries, OTO edge cases and DBTool preflight/post-build verification.
+
+
+## VOCALOID4 VQM / Growl support
+
+- Added Pack-tab **Import VQM (Growl samples)** donor selection and CLI `pack --import-vqm` support.
+- Accepts a donor `.ddi`, matching `.ddb`, or a folder containing exactly one matching pair.
+- Imports the native VQM node and its referenced `FRM2`/`SND ` chunks, rebases DDB offsets, updates the DDI DBV count, and validates the final references before writing.
+- Handles the two observed VQM metadata marker widths (16-bit and 32-bit) when reading records.
+- The output `.vvd` now advertises Growl only when validated VQM sample data is present; V2/V3 packages cannot import VQM.
+- Added synthetic binary regression tests for VQM parsing, pointer rebasing, DBV count handling, replacement, and package flag gating.
+
+
+## VOCALOID4 voice parameters and VSQX controls
+
+- Added configurable V4 Singer Editor offsets for BRE/BRI/CLE/GEN (signed -127..127) to the pack CLI, Pack-tab GUI and Developer Editor DB_Dev.ini slot registration. Neutral defaults remain zero.
+- Added a separate V4 control schema with validated ranges for DYN/BRE/BRI/CLE/GEN/POR/PIT/PBS/GWL/XSY. GWL and XSY require explicit opt-ins because they depend on VQM data and a secondary singer, respectively.
+- Extended VSQX4 generation to serialize native `<cc>` control-change events and signed singer-level `<vPrm>` offsets. OPE and VEL are serialized per note (`nStyle/opening` and note velocity) rather than as track curves; the POR probe enables note portamento so the timing control is exercised.
+- Added `tools/parameter_probe.py` to generate paired baseline/changed-parameter V4 projects for audibility checks, with optional Growl probe generation.
+- Added validation and regression tests for parameter domains, VSQX XML placement, note-specific OPE/VEL, voice profile packaging and dev-slot output.
+- Real VOCALOID4 Editor/DBTool audible validation remains required; synthetic tests validate serialization and range handling only.
