@@ -25,7 +25,8 @@ def load_dictionary_txt(path):
     """Parse a DBTool phonetic dictionary .txt (phonetic_group(name=..., voiced=...): + indented phonemes)."""
     d = PhoneticDict()
     group, voiced = None, None
-    lines = open(path, encoding='latin-1').read().splitlines(True)
+    with open(path, encoding='latin-1') as fh:
+        lines = fh.read().splitlines(True)
     # our files write "a#1" as "aX1" (EVEC_STANDIN); ones written before the rename say utau2vocaloid
     ours = bool(lines) and ('Henkan' in lines[0] or 'utau2vocaloid' in lines[0])
     for raw in lines:
@@ -52,7 +53,8 @@ def load_dictionary_txt(path):
 
 def load_dictionary_dat(path):
     """Read the PHDC chunk of a DB .dat/.tree (31-byte records: name + unvoiced flag)."""
-    data = open(path, 'rb').read()
+    with open(path, 'rb') as fh:
+        data = fh.read()
     i = data.find(b'PHDC')
     if i < 0:
         raise ValueError('no PHDC chunk in %s' % path)
@@ -141,8 +143,13 @@ def patch_evec_names(db_path):
     return n
 
 
+def art_key(parts):
+    """The phonemes of an articulation from its path in a DB: the DBTool files a triphone under a/^k/a."""
+    return tuple(p[1:] if i == 1 and len(parts) == 3 and p.startswith('^') else p for i, p in enumerate(parts))
+
+
 def db_pitches(db_path):
-    """The pitch the DBTool analysed for every unit of a built DB: {('art', p1, p2) | ('stat', p):
+    """The pitch the DBTool analysed for every unit of a built DB: {('art', p1, p2, ...) | ('stat', p):
     median first-harmonic frequency (Hz) of the unit's frames}. Each FRM2 frame holds its partials'
     frequencies (u32 count at +28, f32 frequencies from +32)."""
     import os
@@ -158,7 +165,8 @@ def db_pitches(db_path):
             for fn in files:
                 if fn.endswith('.dat'):
                     continue
-                b = open(os.path.join(dp, fn), 'rb').read()
+                with open(os.path.join(dp, fn), 'rb') as fh:
+                    b = fh.read()
                 f1 = []
                 for m in re.finditer(b'FRM2', b):
                     i = m.start()
@@ -169,7 +177,7 @@ def db_pitches(db_path):
                 if not f1:
                     continue
                 parts = [name(x) for x in os.path.relpath(os.path.join(dp, fn), base).split(os.sep)]
-                k = ('art',) + tuple(parts) if key == 'art' else ('stat', parts[1] if len(parts) > 2 else parts[0])
+                k = ('art',) + art_key(parts) if key == 'art' else ('stat', parts[1] if len(parts) > 2 else parts[0])
                 out[k] = float(np.median(f1))
     return out
 
@@ -187,7 +195,8 @@ def dictionary_language(path):
     if 'english' in name or name.startswith('en_'):
         return 'en'
     try:
-        txt = open(path, encoding='latin-1').read(20000)
+        with open(path, encoding='latin-1') as fh:
+            txt = fh.read(20000)
     except OSError:
         return None
     if 'phonetic_group(' not in txt:
@@ -246,7 +255,9 @@ def write_trans(path, phonemes, directives):
 
 def read_trans(path):
     phonemes, directives = None, []
-    for raw in open(path, encoding='ascii'):
+    with open(path, encoding='ascii') as fh:
+        lines = list(fh)
+    for raw in lines:
         line = raw.strip(' \t\r\n')
         if not line:
             continue
@@ -298,7 +309,9 @@ def write_seg(path, segments, stationaries=False, revised=True):
 def read_seg(path):
     segs, stationaries, revised = [], False, False
     n = None
-    for raw in open(path, encoding='ascii'):
+    with open(path, encoding='ascii') as fh:
+        lines = list(fh)
+    for raw in lines:
         line = raw.strip()
         if not line or line.startswith('==='):
             continue
@@ -377,7 +390,8 @@ def write_as(path, a: ArtSeg):
 
 def read_as(path):
     """Mimics the DBTool reader: strip whitespace, one block, key:value; fields."""
-    txt = re.sub(r'\s+', '', open(path, encoding='ascii').read())
+    with open(path, encoding='ascii') as fh:
+        txt = re.sub(r'\s+', '', fh.read())
     for head in ('nphoneartsegmentation{', 'articulationasrsegmentation{'):
         if txt.startswith(head):
             break
@@ -429,33 +443,106 @@ def read_as(path):
 # ---------------------------------------------------------------- whole-folder validation
 
 def validate_folder(folder, dictionary=None, sample_rate=44100):
-    """Check every .trans in folder the way the DBTool would. Returns list of error strings."""
+    """Validate a flat DBTool segmentation folder before the legacy DBTool is started.
+
+    Checks the complete sidecar set (.wav/.trans/.seg/.asN), DBTool's WAV and text
+    constraints, transcription/dictionary agreement, segment geometry, articulation
+    directives, and optional manifest references. Returns actionable error strings.
+    """
+    import csv
     import os
     import wave
+
     errors = []
-    for fn in sorted(os.listdir(folder)):
-        if not fn.endswith('.trans'):
-            continue
-        base = os.path.join(folder, fn[:-6])
+    if not os.path.isdir(folder):
+        return ['segmentation folder does not exist: %s' % folder]
+    names = os.listdir(folder)
+    trans_files = sorted(fn for fn in names if fn.lower().endswith('.trans'))
+    trans_bases = {fn[:-6] for fn in trans_files}
+    if not trans_files:
+        errors.append('no .trans files found: the DBTool has no units to build')
+
+    # The DBTool consumes a flat directory and expects the matching sidecars to be
+    # adjacent. Detect orphan files rather than letting it silently skip them.
+    for fn in sorted(names):
+        low = fn.lower()
+        if low.endswith(('.wav', '.seg')) or re.search(r'\.as\d+$', low):
+            base = fn.rsplit('.', 1)[0]
+            if base not in trans_bases:
+                errors.append('%s: no matching .trans file' % fn)
+
+    manifest_rows = None
+    manifest_path = os.path.join(folder, 'manifest.csv')
+    if os.path.exists(manifest_path):
         try:
-            phonemes, directives = read_trans(base + '.trans')
+            with open(manifest_path, encoding='utf-8-sig', newline='') as fh:
+                manifest_rows = list(csv.DictReader(fh))
+            required = {'file', 'kind', 'unit'}
+            if not manifest_rows or not required.issubset(manifest_rows[0]):
+                errors.append('manifest.csv: missing required columns or no data rows')
+            else:
+                for row_no, row in enumerate(manifest_rows, 2):
+                    base = str(row.get('file', '')).strip()
+                    if not base or not os.path.isfile(os.path.join(folder, base + '.trans')):
+                        errors.append('manifest.csv:%d: missing transcription for %r' % (row_no, base))
+        except Exception as ex:  # noqa: BLE001 - report corrupt sidecar without aborting validation
+            errors.append('manifest.csv: %s' % ex)
+
+    for fn in trans_files:
+        base_name = fn[:-6]
+        base = os.path.join(folder, base_name)
+        trans_path = base + '.trans'
+        wav_path = base + '.wav'
+        seg_path = base + '.seg'
+        try:
+            with open(trans_path, 'rb') as fh:
+                raw = fh.read()
+            if len(raw) > 512 * 1024:
+                raise ValueError('.trans exceeds the DBTool 512 KiB parser limit')
+            if any(len(line) > 1023 for line in raw.splitlines()):
+                raise ValueError('.trans contains a line longer than the DBTool 1023-byte input buffer')
+            phonemes, directives = read_trans(trans_path)
+            if not phonemes:
+                raise ValueError('empty phoneme transcription')
+            if not directives:
+                raise ValueError('no articulation-to-add directives')
             if dictionary is not None:
                 bad = [p for p in phonemes if p not in dictionary]
                 if bad:
-                    raise ValueError('phonemes not in dictionary: %s' % '  '.join(bad))
-            kinds = {len(u) == 1 for u, _ in directives}
-            if len(kinds) > 1:
-                raise ValueError('mixes stationaries and articulations')
-            with wave.open(base + '.wav') as w:
+                    raise ValueError('phonemes not in dictionary: %s' % '  '.join(sorted(set(bad))))
+            for unit, occ in directives:
+                if occ < 1:
+                    raise ValueError('directive occurrence must be 1 or greater')
+                if find_occurrence(phonemes, unit, occ) < 0:
+                    raise ValueError('directive %s occurrence %d is not in transcription'
+                                     % (' '.join(unit), occ))
+
+            if not os.path.isfile(wav_path):
+                raise ValueError('missing matching .wav file')
+            if not os.path.isfile(seg_path):
+                raise ValueError('missing matching .seg file')
+            with wave.open(wav_path) as w:
                 if w.getframerate() != sample_rate:
                     raise ValueError('sample rate %d != %d' % (w.getframerate(), sample_rate))
+                if w.getnchannels() != 1:
+                    raise ValueError('DBTool WAV must be mono (got %d channels)' % w.getnchannels())
+                if w.getsampwidth() != 2 or w.getcomptype() != 'NONE':
+                    raise ValueError('DBTool WAV must be uncompressed 16-bit PCM')
                 nsamp = w.getnframes()
-            dur = nsamp / sample_rate
-            segs, stat, _ = read_seg(base + '.seg')
+            if nsamp < 1:
+                raise ValueError('WAV contains no samples')
+            dur = nsamp / float(sample_rate)
+
+            segs, stat, _ = read_seg(seg_path)
             if [s[0] for s in segs] != phonemes:
                 raise ValueError('seg phonemes %s != trans %s' % ([s[0] for s in segs], phonemes))
+            kinds = {len(u) == 1 for u, _ in directives}
+            if len(kinds) > 1:
+                raise ValueError('mixes stationary and articulation directives')
             if stat != (True in kinds):
                 raise ValueError('articulationsAreStationaries flag mismatch')
+            if len(segs) != len(phonemes):
+                raise ValueError('segmentation has %d rows for %d phonemes' % (len(segs), len(phonemes)))
             for i, (_, b, e) in enumerate(segs):
                 if b < 0 or e <= b:
                     raise ValueError('bad segment %d' % i)
@@ -463,22 +550,29 @@ def validate_folder(folder, dictionary=None, sample_rate=44100):
                     raise ValueError('gap/overlap before segment %d' % i)
             if segs[-1][2] > dur + 1e-3:
                 raise ValueError('segmentation past end of wav')
+
+            expected_as = set()
             for k, (unit, occ) in enumerate(directives):
+                expected_as.add('%s.as%d' % (base_name, k))
+                as_path = '%s.as%d' % (base, k)
+                if not os.path.isfile(as_path):
+                    raise ValueError('missing .as%d for directive %s' % (k, ' '.join(unit)))
                 start = find_occurrence(phonemes, unit, occ)
-                if start < 0:
-                    raise ValueError('directive %s not in transcription' % unit)
-                a = read_as('%s.as%d' % (base, k))
+                a = read_as(as_path)
                 if a.phns != unit:
                     raise ValueError('.as%d phonemes %s != directive %s' % (k, a.phns, unit))
-                if a.cut_offset < 0 or a.cut_offset + a.cut_length > nsamp:
+                if a.cut_offset < 0 or a.cut_length <= 0 or a.cut_offset + a.cut_length > nsamp:
                     raise ValueError('.as%d cut region outside wav' % k)
                 t = [a.cut_offset / sample_rate + x for x in a.boundaries]
+                if any(not (float('-inf') < x < float('inf')) for x in t):
+                    raise ValueError('.as%d contains non-finite boundary values' % k)
                 if any(t[i + 1] <= t[i] for i in range(len(t) - 1)):
                     raise ValueError('.as%d boundaries not increasing' % k)
                 if t[0] < 0 or t[-1] > (a.cut_offset + a.cut_length) / sample_rate + 1e-6:
                     raise ValueError('.as%d boundaries outside cut region' % k)
-                # marks must sit in the right phoneme segments
                 segu = segs[start:start + len(unit)]
+                if len(segu) != len(unit):
+                    raise ValueError('.as%d unit extends beyond segmentation' % k)
                 if len(unit) == 1:
                     if not (segu[0][1] - 1e-6 <= t[0] and t[1] <= segu[0][2] + 1e-6):
                         raise ValueError('.as%d stationary marks outside segment' % k)
@@ -489,6 +583,11 @@ def validate_folder(folder, dictionary=None, sample_rate=44100):
                     for j in range(len(unit) - 1):
                         if abs(t[2 * j + 1] - segu[j][2]) > 0.002:
                             raise ValueError('.as%d transition %d != seg boundary' % (k, j))
+            actual_as = {name for name in names if name.startswith(base_name + '.as')
+                         and re.fullmatch(re.escape(base_name) + r'\.as\d+', name)}
+            unexpected = sorted(actual_as - expected_as)
+            if unexpected:
+                raise ValueError('orphan .as sidecar(s): %s' % ', '.join(unexpected))
         except Exception as ex:  # noqa: BLE001 - collect all problems
             errors.append('%s: %s' % (fn, ex))
     return errors

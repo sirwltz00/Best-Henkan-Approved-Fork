@@ -96,7 +96,9 @@ JA_VOWEL = {'a': 'a', 'i': 'i', 'u': 'M', 'e': 'e', 'o': 'o'}
 # consonant label -> (plain, palatal)
 JA_CONS = {
     '': (None, None), 'k': ('k', "k'"), 'g': ('g', "g'"), 's': ('s', 's'), 'sh': ('S', 'S'),
-    'z': ('z', 'z'), 'j': ('Z', 'Z'), 't': ('t', "t'"), 'ch': ('tS', 'tS'), 'ts': ('ts', 'ts'),
+    # VOCALOID Japanese notation uses dz/dZ for these phonemes in every context.
+    # Henkan distinguishes medial fricative realization acoustically, not by changing the label.
+    'z': ('dz', 'dz'), 'j': ('dZ', 'dZ'), 't': ('t', "t'"), 'ch': ('tS', 'tS'), 'ts': ('ts', 'ts'),
     'd': ('d', "d'"), 'n': ('n', 'J'), 'h': ('h', 'C'), 'f': ('p\\', "p\\'"), 'b': ('b', "b'"),
     'p': ('p', "p'"), 'm': ('m', "m'"), 'y': ('j', 'j'), 'r': ('4', "4'"), 'w': ('w', 'w'),
     'v': ('b', "b'"),
@@ -109,16 +111,16 @@ V_MODES = ('auto', 'v', 'b')
 # y-glide labels -> base label
 JA_PAL = {'ky': 'k', 'gy': 'g', 'ty': 't', 'dy': 'd', 'ny': 'n', 'hy': 'h', 'fy': 'f', 'by': 'b',
           'py': 'p', 'my': 'm', 'ry': 'r', 'vy': 'v'}
-# initial (after silence / N) variants of medial fricatives
-JA_INITIAL = {'z': 'dz', 'Z': 'dZ'}
+# Japanese z-row phoneme labels used by VOCALOID. These labels are written as dz/dZ
+# even when their medial VCV realization is acoustically a continuous [z]/[Z] fricative.
+JA_Z_LABELS = {'dz', 'dZ'}
 
 # relabel substitutes used to fill units a bank never recorded (closures sound alike)
 SUBST = {"k'": ['k'], "g'": ['g'], "t'": ['t'], "d'": ['d'], "p'": ['p'], "b'": ['b'], "m'": ['m'],
-         "4'": ['4'], 'J': ['n'], 'C': ['h'], "p\\'": ['p\\'], 'dz': ['z'], 'dZ': ['Z'], 'z': ['dz'],
-         'Z': ['dZ'], 'N': ['N\\', 'n'], "N'": ['N\\', 'n'], 'm': ['N\\'], 'n': ['N\\'],
+         "4'": ['4'], 'J': ['n'], 'C': ['h'], "p\\'": ['p\\'], 'N': ['N\\', 'n'], "N'": ['N\\', 'n'], 'm': ['N\\'], 'n': ['N\\'],
          "v'": ['v']}
 # in [C V] units only these are close enough to swap
-SUBST_CV = {"p\\'": ['p\\'], 'dz': ['z'], 'dZ': ['Z'], 'z': ['dz'], 'Z': ['dZ']}
+SUBST_CV = {"p\\'": ['p\\']}
 
 # phonemes the devkit's Japanese dictionary lacks: added to the generated dictionary.txt
 JA_EXTRA = {'b': ('VoicedPlosives', True), "b'": ('VoicedPlosives', True),
@@ -217,7 +219,7 @@ def ja_syllable(rom, v=False):
     if rom == 'fu':
         return ['p\\', 'M']
     if rom == 'ji':
-        return ['Z', 'i']
+        return ['dZ', 'i']
     if not rom or rom[-1] not in JA_VOWEL:
         return None
     label, vw = rom[:-1], rom[-1]
@@ -315,10 +317,6 @@ def ja_alias(alias, v=False):
     # context rules
     if seq[0] == 'N\\' and len(seq) > 1:
         seq[0] = nasal_before(seq[1])
-    for i in range(1, len(seq)):
-        prev = seq[i - 1]
-        if seq[i] in JA_INITIAL and (prev == 'Sil' or prev in NASAL):
-            seq[i] = JA_INITIAL[seq[i]]
     return seq
 
 

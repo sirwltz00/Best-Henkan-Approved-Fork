@@ -137,6 +137,14 @@ class DBToolHandoff(DBToolError):
     """The automation got stuck; the DBTool is left open with its files so the user can finish by hand."""
 
 
+class DBToolFrozen(DBToolError):
+    """The DBTool is running but no longer answers Windows. Worth one more try from the start."""
+
+
+FROZEN = ('the DBTool stopped responding right after opening %s. Your dictionary is not the problem (the DBTool '
+          'accepts any file at this step): the DBTool itself froze on this PC')
+
+
 class NoFiles(DBToolError):
     """The segmentation list came up empty: the DBTool read the wrong folder. Nothing to finish by hand."""
 
@@ -243,6 +251,14 @@ class DBTool:
     def _alive(self):
         return self.app.is_process_running()
 
+    def _responding(self):
+        """Does the DBTool still answer Windows? A frozen one is alive, but its windows all read as untitled."""
+        try:
+            self._gui.SendMessageTimeout(self.main.handle, self._con.WM_NULL, 0, 0, self._con.SMTO_ABORTIFHUNG, 3000)
+        except Exception:                         # noqa: BLE001 - pywintypes.error: hung, or the window is gone
+            return False
+        return True
+
     def _wait(self, cond, timeout, what, poll=0.5):
         t = time.time()
         while time.time() - t < timeout:
@@ -307,9 +323,11 @@ class DBTool:
         self._menu(CMD_NEW_DB)
         self._file_dialog('Load Phonetic Dictionary file', os.path.abspath(dictionary))
         try:
-            self._dialog('Singer database Path & Name', timeout=60)
+            self._dialog('Singer database Path & Name', timeout=180)
         except DBToolError as ex:
-            raise DBToolError('the DBTool did not take the phonetic dictionary %s (%s)' % (dictionary, ex))
+            if self._alive() and not self._responding():
+                raise DBToolFrozen(FROZEN % dictionary) from ex
+            raise DBToolError('the DBTool did not open its next window after %s (%s)' % (dictionary, ex)) from ex
         self._file_dialog('Singer database Path & Name', os.path.abspath(db_path))
         dlg = self._dialog('Select language')
         box = dlg.child_window(class_name='ComboBox').wrapper_object()
@@ -535,9 +553,11 @@ class DBTool:
                 raise DBToolError('timed out during: %s' % what)
 
     def _db_units(self, kind):
-        """Units already written to the DB folder: {pair or phoneme: (bytes, mtime)}. The DBTool writes one
-        file per unit (voice/articulation/<p1>/<p2>, voice/stationary/normal/<p>/<n>), so this shows
-        progress without reading its window (which fails on some PCs and is slow for big banks)."""
+        """Units already written to the DB folder: {phonemes or phoneme: (bytes, mtime)}. The DBTool writes
+        one file per unit (voice/articulation/<p1>/<p2>, a triphone /<p1>/^<p2>/<p3>,
+        voice/stationary/normal/<p>/<n>), so this shows progress without reading its window (which fails
+        on some PCs and is slow for big banks)."""
+        from . import dbtool_io
         base = os.path.join(self.db_path, 'voice', kind)
         out = {}
         for dp, _, files in os.walk(base):
@@ -546,7 +566,7 @@ class DBTool:
                     continue
                 f = os.path.join(dp, fn)
                 parts = [_decode(x) for x in os.path.relpath(f, base).split(os.sep)]
-                key = tuple(parts) if kind == 'articulation' else parts[1] if len(parts) > 2 else parts[0]
+                key = dbtool_io.art_key(parts) if kind == 'articulation' else parts[1] if len(parts) > 2 else parts[0]
                 try:
                     st = os.stat(f)
                 except OSError:
@@ -620,36 +640,89 @@ class DBTool:
 
 
 def build(exe, seg_folder, db_path, name=None, dictionary=None, language='Japanese', log=print, hidden=True):
-    """Create db_path (folder\\Name) from seg_folder's dictionary.txt and add every unit. Afterwards the
-    pitch the DBTool analysed for each unit is checked; units it read an octave off get their
-    fundamental raised and the DB is built once more. hidden: run the DBTool out of sight."""
+    """Create and verify db_path (folder\\Name) from a converted DBTool folder.
+
+    A complete preflight runs even when this function is called outside henkan.py:
+    the legacy DBTool should never be opened with missing sidecars, bad WAV format,
+    malformed segmentation metadata or dictionary mismatches.
+    """
+    from . import dbtool_io
+
     dictionary = os.path.abspath(dictionary or os.path.join(seg_folder, 'dictionary.txt'))
     seg_folder = os.path.abspath(seg_folder)
-    if os.path.exists(os.path.abspath(db_path) + '.tree'):
-        raise DBToolError('%s already exists; pick a new DB name' % db_path)
     final = os.path.abspath(db_path)
+    if not os.path.isdir(seg_folder):
+        raise DBToolError('converted folder does not exist: %s' % seg_folder)
+    if not os.path.isfile(dictionary):
+        raise DBToolError('phonetic dictionary not found: %s' % dictionary)
     if not ansi_safe(os.path.basename(final)):
         raise DBToolError('the DBTool cannot handle the DB name "%s": use plain letters and digits (A-Z, 0-9)'
                           % os.path.basename(final))
+    if any(os.path.exists(path) for path in (final, final + '.dat', final + '.tree')):
+        raise DBToolError('%s already exists (or contains a partial DB); pick a new DB name or remove the old files'
+                          % final)
+
+    try:
+        phonetic_dict = dbtool_io.load_dictionary(dictionary)
+    except Exception as ex:  # noqa: BLE001 - normalize corrupt dictionary errors for GUI/CLI callers
+        raise DBToolError('cannot read phonetic dictionary %s: %s' % (dictionary, ex)) from ex
+    if not phonetic_dict.voiced:
+        raise DBToolError('phonetic dictionary is empty or not a DBTool dictionary: %s' % dictionary)
+    errors = dbtool_io.validate_folder(seg_folder, phonetic_dict)
+    if errors:
+        preview = '\n'.join('  - ' + item for item in errors[:15])
+        more = '\n  - ... and %d more' % (len(errors) - 15) if len(errors) > 15 else ''
+        raise DBToolError('converted folder failed preflight (%d issue(s)):\n%s%s'
+                          % (len(errors), preview, more))
+    art_expected, stat_expected = expected_units(seg_folder)
+    if not art_expected and not stat_expected:
+        raise DBToolError('converted folder contains no stationaries or articulations to build')
+    log('preflight OK: %d articulation unit(s), %d stationary unit(s), %d dictionary phoneme(s)'
+        % (len(art_expected), len(stat_expected), len(phonetic_dict.voiced)))
+
     os.makedirs(os.path.dirname(final), exist_ok=True)
     stage = None
+    build_path = final
     if not ansi_safe(final):
-        # the DBTool can't write there: build in a folder it can, and move the DB in afterwards
+        # the DBTool cannot write there: build in a folder it can, and move the DB in afterwards
         stage = _mkdtemp('dbtool_db_')
-        db_path = os.path.join(stage, os.path.basename(final))
+        build_path = os.path.join(stage, os.path.basename(final))
     try:
-        failed = _build_passes(exe, seg_folder, db_path, name, dictionary, language, log, hidden)
+        failed = _build_passes(exe, seg_folder, build_path, name, dictionary, language, log, hidden)
+        if stage:
+            for part in (build_path + '.dat', build_path + '.tree', build_path):
+                if not os.path.exists(part):
+                    raise DBToolError('DBTool did not create expected output: %s' % part)
+                shutil.move(part, final + part[len(build_path):])
+            shutil.rmtree(stage, ignore_errors=True)
+            stage = None
+        # The DBTool can exit without a useful database after a partial automation
+        # run. Verify the files it generated before reporting success to the GUI.
+        missing = [path for path in (final + '.dat', final + '.tree')
+                   if not os.path.isfile(path) or os.path.getsize(path) < 64]
+        if missing:
+            raise DBToolError('DBTool finished without valid database artifacts: %s' % ', '.join(missing))
+        try:
+            built_dict = dbtool_io.load_dictionary_dat(final + '.dat')
+        except Exception as ex:  # noqa: BLE001
+            raise DBToolError('the generated .dat file has no readable phoneme dictionary: %s' % ex) from ex
+        if not built_dict.voiced:
+            raise DBToolError('the generated database contains an empty phoneme dictionary')
+        inf = os.path.join(final, 'singer.inf')
+        if not os.path.isfile(inf):
+            log('warning: singer.inf was not found at %s; inspect the DBTool output before packing' % inf)
+        else:
+            log('database artifacts verified: .dat, .tree, %d phoneme(s)' % len(built_dict.voiced))
+        return failed
     except DBToolHandoff:
         raise
     except BaseException:
         if stage:
             shutil.rmtree(stage, ignore_errors=True)
+        # This destination was confirmed absent above, so any partial artifacts belong
+        # to this failed run and can be removed without touching an existing DB.
+        _remove_db(final)
         raise
-    if stage:
-        for part in (db_path + '.dat', db_path + '.tree', db_path):
-            shutil.move(part, final + part[len(db_path):])
-        shutil.rmtree(stage, ignore_errors=True)
-    return failed
 
 
 def _build_passes(exe, seg_folder, db_path, name, dictionary, language, log, hidden):
@@ -706,6 +779,10 @@ def _build_fresh(exe, seg_folder, db_path, name, dictionary, language, log, boos
             raise
         except NoHiddenDesktop as ex:
             log('no hidden desktop for the DBTool (%s): it runs where you can see it' % ex)
+        except DBToolFrozen as ex:
+            if k == len(plan) - 1:
+                raise
+            log('%s\n>>> closing it and starting the build again.' % ex)
         except DBToolError as ex:
             if where != 'hidden':
                 raise
@@ -767,7 +844,8 @@ def _remove_db(db_path):
 
 def _build(exe, seg_folder, db_path, name, dictionary, language, log, desktop=None):
     from . import dbtool_io
-    evec = dbtool_io.EVEC_STANDIN + '1' in open(dictionary, encoding='latin-1').read()
+    with open(dictionary, encoding='latin-1') as fh:
+        evec = dbtool_io.EVEC_STANDIN + '1' in fh.read()
     t = DBTool(exe, seg_folder, log, desktop)
     if evec:
         # EVEC colours: create the DB with stand-in names ("aX1"), rename them to "a#1" in its phoneme
@@ -819,7 +897,9 @@ def _build(exe, seg_folder, db_path, name, dictionary, language, log, desktop=No
     t.close()
     inf = os.path.join(os.path.abspath(db_path), 'singer.inf')
     if name and os.path.exists(inf):
-        txt = open(inf, encoding='latin-1').read()
+        with open(inf, encoding='latin-1') as fh:
+            txt = fh.read()
         txt = txt.replace('Name = "Undefined"', 'Name = "%s"' % name)
-        open(inf, 'w', encoding='latin-1').write(txt)
+        with open(inf, 'w', encoding='latin-1') as fh:
+            fh.write(txt)
     return failed
