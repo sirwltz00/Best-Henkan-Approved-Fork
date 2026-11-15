@@ -26,10 +26,10 @@ sys.path.insert(0, ROOT)
 
 
 SAVED = ('bank', 'out', 'dict', 'lang', 'colors', 'keep', 'splice', 'fill', 'normalize', 'derive', 'extend_dict',
-         'extras', 'evec_map', 'evec_phonemes', 'custom_extras', 'evec_vowels', 'v_mode',
+         'extras', 'evec_map', 'evec_phonemes', 'custom_extras', 'evec_vowels', 'v_mode', 'triphones',
          'merge_groups', 'brighten', 'avoid', 'db_name', 'db_path', 'db_lang', 'dbtool', 'dbtool_hidden',
          'pkg_db', 'pkg_name', 'pkg_compid', 'pkg_out', 'pkg_editor', 'pkg_dest', 'pkg_devini',
-         'v3v2_name', 'v3v2_lang', 'sections', 'geometry', 'tab')
+          'v3v2_name', 'v3v2_lang', 'pitch_assignments', 'sections', 'geometry', 'tab')
 
 V3V2_BROWSE_FOLDER = 'Browse for a voicebank folder…'
 V3V2_BROWSE_TREE = 'Browse for a developer-kit .tree…'
@@ -201,6 +201,7 @@ class App(tk.Tk):
                       extend_dict=B(value=True), merge_groups=B(value=False), extras=B(value=True),
                       brighten=S(), avoid=S(), evec_map=S(), evec_phonemes=S(),
                       custom_extras=S(), evec_vowels=B(value=False), v_mode=S(value=V_MODE_LABELS[0]),
+                      triphones=B(value=False), pitch_assignments=S(value='{}'),
                       sections=S(value='extras'), geometry=S(), tab=S(value='0'),
                       db_name=S(), db_path=S(), db_lang=S(value='Japanese'),
                       pkg_db=S(), pkg_name=S(), pkg_compid=S(), pkg_out=S(), pkg_editor=S(),
@@ -664,6 +665,8 @@ class App(tk.Tk):
         ttk.Button(pick, text='All', width=6, command=lambda: self.glist.selection_set(0, 'end')).pack(side='left')
         ttk.Button(pick, text='None', width=6,
                    command=lambda: self.glist.selection_clear(0, 'end')).pack(side='left', padx=6)
+        ttk.Button(left, text='Pitch & Append…', command=self._edit_pitch_assignments).pack(
+            fill='x', pady=(8, 0))
 
         sf = ScrollFrame(f)
         sf.grid(row=0, column=1, sticky='nsew', padx=(16, 0))
@@ -694,7 +697,8 @@ class App(tk.Tk):
         s = self._section(r, 2, 'processing', 'Processing').body
         checks = [('splice', 'Fake missing transitions (CV legato)'), ('fill', 'Fill missing units'),
                   ('normalize', 'Even out loudness'), ('derive', 'Units from silence'),
-                  ('extend_dict', "Add b, b', p\\' to dictionary"), ('merge_groups', 'Treat folders as one set')]
+                  ('extend_dict', "Add b, b', p\\' to dictionary"), ('merge_groups', 'Treat folders as one set'),
+                  ('triphones', 'Prefer matching VCV oto.ini aliases (triphones)')]
         for i, (k, t) in enumerate(checks):
             ttk.Checkbutton(s, text=t, variable=self.v[k]).grid(row=i // 2, column=i % 2, sticky='w',
                                                                 padx=(0, 24), pady=1)
@@ -741,7 +745,7 @@ class App(tk.Tk):
                                                                                        'report.txt'))).pack(side='left')
         ttk.Button(b, text='Open folder', command=lambda: self.open_file(self.v['out'].get())).pack(side='left', padx=6)
 
-        for k in ('splice', 'fill', 'normalize', 'derive', 'extend_dict', 'merge_groups', 'extras', 'custom_extras', 'evec_map', 'evec_vowels', 'evec_phonemes', 'colors', 'brighten', 'avoid'):
+        for k in ('splice', 'fill', 'normalize', 'derive', 'extend_dict', 'merge_groups', 'triphones', 'extras', 'custom_extras', 'evec_map', 'evec_vowels', 'evec_phonemes', 'colors', 'brighten', 'avoid'):
             self.v[k].trace_add('write', lambda *_a: self._summaries())
         self._summaries()
         return f
@@ -758,6 +762,8 @@ class App(tk.Tk):
         bits = ['all on' if not off else 'off: ' + ', '.join(off)]
         if v['merge_groups'].get():
             bits.append('folders merged')
+        if v['triphones'].get():
+            bits.append('triphones')
         self.sections['processing'].summary.set(' · '.join(bits))
         try:
             from u2v import select as _SelS
@@ -1567,6 +1573,138 @@ class App(tk.Tk):
             side='right')
         top.protocol('WM_DELETE_WINDOW', close)
 
+
+    def _edit_pitch_assignments(self):
+        """Assign an append/voice colour and recorded pitch to each detected OTO group."""
+        bank = self.v['bank'].get()
+        if not os.path.isdir(bank):
+            return messagebox.showwarning('Pitch & Append', 'Choose a voicebank first.')
+        try:
+            from u2v import oto
+            entries = oto.read_bank(bank)
+        except Exception as ex:  # noqa: BLE001 - report bank parsing issues in the GUI
+            return messagebox.showwarning('Pitch & Append', 'Could not read the bank: %s' % ex)
+        if not entries:
+            return messagebox.showinfo('Pitch & Append', 'No oto.ini entries were found.')
+
+        grouped = {}
+        for entry in entries:
+            row = grouped.setdefault(entry.group, {
+                'count': 0,
+                'append': (entry.color or 'main').strip() or 'main',
+                'pitch': entry.pitch.upper().lstrip('_') if oto.NOTE_RE.fullmatch(entry.pitch) else '',
+            })
+            row['count'] += 1
+
+        try:
+            saved_by_bank = json.loads(self.v['pitch_assignments'].get() or '{}')
+            if not isinstance(saved_by_bank, dict):
+                saved_by_bank = {}
+        except (TypeError, ValueError):
+            saved_by_bank = {}
+        bank_key = os.path.normcase(os.path.abspath(bank))
+        saved = saved_by_bank.get(bank_key, {})
+        if not isinstance(saved, dict):
+            saved = {}
+
+        top = tk.Toplevel(self)
+        top.title('Pitch & Append Assignment')
+        top.transient(self)
+        top.grab_set()
+        top.geometry('860x650')
+        top.minsize(700, 440)
+        top.columnconfigure(0, weight=1)
+        top.rowconfigure(1, weight=1)
+        ttk.Label(
+            top, padding=(14, 12, 14, 8), justify='left', wraplength=820,
+            text='Assign each detected OTO group to a voice append (colour) and its actual recording pitch. '
+                 'The complete group name is used, so Natural/_0 and Power/_0 can have different pitches. '
+                 'Leave Pitch blank when it is unknown; Henkan will keep its existing fallback behaviour. '
+                 'To include several append names in one singer DB, use Voice colours = evec in the Convert tab.'
+        ).grid(row=0, column=0, sticky='ew')
+
+        holder = ttk.Frame(top, padding=(14, 0, 14, 0))
+        holder.grid(row=1, column=0, sticky='nsew')
+        holder.columnconfigure(0, weight=1)
+        holder.rowconfigure(0, weight=1)
+        canvas = tk.Canvas(holder, highlightthickness=0, borderwidth=0)
+        scroll = ttk.Scrollbar(holder, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.grid(row=0, column=0, sticky='nsew')
+        scroll.grid(row=0, column=1, sticky='ns')
+        table = ttk.Frame(canvas, padding=(2, 2, 10, 2))
+        window = canvas.create_window((0, 0), window=table, anchor='nw')
+        table.bind('<Configure>', lambda _e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda e: canvas.itemconfigure(window, width=e.width))
+        table.columnconfigure(0, weight=3)
+        table.columnconfigure(2, weight=3)
+        table.columnconfigure(3, weight=1)
+        for col, title in enumerate(('Detected OTO group', 'Entries', 'Append / colour', 'Pitch')):
+            ttk.Label(table, text=title, style='Head.TLabel').grid(
+                row=0, column=col, sticky='w', padx=(4, 8), pady=(4, 8))
+
+        fields = []
+        for row_index, (group, info) in enumerate(sorted(grouped.items()), start=1):
+            prior = saved.get(group, {}) if isinstance(saved.get(group, {}), dict) else {}
+            append_var = tk.StringVar(value=str(prior.get('append', prior.get('color', info['append'])) or 'main'))
+            pitch_var = tk.StringVar(value=str(prior.get('pitch', info['pitch']) or '').upper())
+            ttk.Label(table, text=group, wraplength=300).grid(
+                row=row_index, column=0, sticky='w', padx=(4, 8), pady=3)
+            ttk.Label(table, text=str(info['count'])).grid(
+                row=row_index, column=1, sticky='w', padx=(4, 8), pady=3)
+            ttk.Entry(table, textvariable=append_var, width=22).grid(
+                row=row_index, column=2, sticky='ew', padx=(4, 8), pady=3)
+            ttk.Entry(table, textvariable=pitch_var, width=10).grid(
+                row=row_index, column=3, sticky='ew', padx=(4, 8), pady=3)
+            fields.append((group, append_var, pitch_var))
+
+        buttons = ttk.Frame(top, padding=14)
+        buttons.grid(row=2, column=0, sticky='ew')
+
+        def close():
+            top.destroy()
+
+        def save():
+            assignments = {}
+            for group, append_var, pitch_var in fields:
+                append = append_var.get().strip()
+                pitch = pitch_var.get().strip().upper().lstrip('_')
+                if not append:
+                    messagebox.showwarning('Pitch & Append', 'Enter an append name for %s.' % group, parent=top)
+                    return
+                if pitch and not oto.NOTE_RE.fullmatch(pitch):
+                    messagebox.showwarning(
+                        'Pitch & Append', 'Pitch %r for %s is not a note. Use values such as E3 or F#4, '
+                        'or leave it blank.' % (pitch, group), parent=top)
+                    return
+                assignments[group] = {'append': append, 'pitch': pitch}
+            saved_by_bank[bank_key] = assignments
+            append_names = {item['append'] for item in assignments.values()}
+            self.v['pitch_assignments'].set(json.dumps(saved_by_bank, ensure_ascii=False))
+            if len(append_names) > 1 and self.v['colors'].get() == 'main':
+                if messagebox.askyesno(
+                        'Multiple appends assigned',
+                        'You assigned %d append names. The current Voice colours setting is main, which '
+                        'converts only one append. Switch it to evec so the database includes all assigned '
+                        'appends?' % len(append_names), parent=top):
+                    self.v['colors'].set('evec')
+            self._save()
+            self.log('Saved pitch/append assignments for %d OTO groups in %s.\n' %
+                     (len(assignments), os.path.basename(os.path.normpath(bank))), 'ok')
+            close()
+
+        def reset():
+            saved_by_bank.pop(bank_key, None)
+            self.v['pitch_assignments'].set(json.dumps(saved_by_bank, ensure_ascii=False))
+            self._save()
+            self.log('Cleared manual pitch/append assignments; Henkan automatic detection is restored.\n')
+            close()
+
+        ttk.Button(buttons, text='Save assignments', style='Accent.TButton', command=save).pack(side='left')
+        ttk.Button(buttons, text='Reset to automatic', command=reset).pack(side='left', padx=8)
+        ttk.Button(buttons, text='Cancel', command=close).pack(side='right')
+        top.protocol('WM_DELETE_WINDOW', close)
+
     def _v_mode(self):
         return (self.v['v_mode'].get().split() or ['auto'])[0]
 
@@ -1592,6 +1730,8 @@ class App(tk.Tk):
                 args.append(flag)
         if v['merge_groups'].get():
             args.append('--merge-groups')
+        if v['triphones'].get():
+            args.append('--use-oto-aliases')
         _em = v['evec_map'].get().strip()
         _ep = v['evec_phonemes'].get().strip()
         if _em or _ep:
@@ -1631,6 +1771,14 @@ class App(tk.Tk):
                 if len(u.split()) != 2:
                     raise ValueError('Avoid units: "%s" should be two phonemes, e.g. g\' i' % u.strip())
                 args += ['--avoid', ' '.join(u.split())]
+        try:
+            saved_by_bank = json.loads(v['pitch_assignments'].get() or '{}')
+        except (TypeError, ValueError):
+            saved_by_bank = {}
+        bank_key = os.path.normcase(os.path.abspath(v['bank'].get()))
+        assignments = saved_by_bank.get(bank_key, {}) if isinstance(saved_by_bank, dict) else {}
+        if assignments:
+            args += ['--group-assignments', json.dumps(assignments, ensure_ascii=False, separators=(',', ':'))]
         return args
 
     def _convert_warnings(self):

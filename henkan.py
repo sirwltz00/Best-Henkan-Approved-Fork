@@ -12,6 +12,7 @@ The output folder holds <name>.wav/.trans/.seg/.as<N> files. Point the DBTool's
 "Segmentate Folder" (WavefilePath) at it, then run the DB build steps.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -44,6 +45,9 @@ def main():
     c.add_argument('--dict', help='DB phonetic dictionary .txt (or a DB .dat). '
                                   'Default: the devkit dictionary for the language')
     c.add_argument('--groups', help='regex: only use these pitch/colour groups (sub folder / suffix)')
+    c.add_argument('--group-assignments', metavar='JSON',
+                   help='JSON object mapping exact source groups to append/pitch, e.g. '
+                        '{\"Natural/_0\":{\"append\":\"Natural\",\"pitch\":\"E3\"}}')
     c.add_argument('--merge-groups', action='store_true',
                    help='treat all selected groups as one sample set (e.g. CV + VCV folders of one pitch)')
     c.add_argument('--keep', type=int, default=1, help='samples kept per unit and group (default 1)')
@@ -89,6 +93,9 @@ def main():
                    help="ヴ (va, vi, vu ...): 'v' gives it its own phonemes v and v' (before i), 'b' sings it "
                         "as b / b' like the stock Japanese dictionary, 'auto' (default) = v when the bank "
                         "recorded any ヴ")
+    c.add_argument('--use-oto-aliases', '--triphones', dest='triphones', action='store_true',
+                   help='use matching recorded VCV oto.ini aliases as whole [V C V] units when available; '
+                        'otherwise use the normal diphone/fill/splice path (a bigger DB)')
     c.add_argument('--list-unknown', action='store_true',
                    help='list bank aliases that map to nothing (candidates for --custom-extra) and exit')
     c.add_argument('--avoid', action='append', default=[], metavar='"C V"',
@@ -265,13 +272,17 @@ def main():
 
     if a.cmd == 'convert':
         try:
+            group_assignments = json.loads(a.group_assignments) if a.group_assignments else None
+            if group_assignments is not None and not isinstance(group_assignments, dict):
+                raise ValueError('--group-assignments must be a JSON object')
             conv = convert.Converter(a.bank, a.out, a.lang, None, a.groups, a.keep, not a.no_derive,
                                      a.merge_groups, not a.no_fill, colors=a.colors,
                                      splice=not a.no_splice, normalize=not a.no_normalize,
                                      brighten={k: float(v) for k, v in (b.split('=') for b in a.brighten)},
                                      avoid=a.avoid, extras='none' if a.no_extras else a.extras,
                                      evec_map=a.evec_map, evec_phonemes=a.evec_phonemes,
-                                     custom_extras=a.custom_extra, evec_mode=a.evec_mode, v_mode=a.v_mode)
+                                     custom_extras=a.custom_extra, evec_mode=a.evec_mode, v_mode=a.v_mode,
+                                     triphones=a.triphones, group_assignments=group_assignments)
         except ValueError as ex:             # a bad option value (old --extras br1, a typo in a spec ...)
             print('error: %s' % ex)
             return 2

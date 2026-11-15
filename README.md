@@ -26,7 +26,7 @@ click "Add Articulations" 790 times with your own human finger.
 
 **Jump to:** [Quick start](#-quick-start-the-i-just-want-it-to-sing-path) ·
 [The window](#%EF%B8%8F-the-window) · [Extras](#%EF%B8%8F-extras--transitions-breaths-rolled-r-end-breaths-anything) ·
-[ヴ](#🅥-ヴ-gets-a-real-v-v-and-v) · [Voice colours](#-voice-colours-evec) ·
+[ヴ](#🅥-ヴ-gets-a-real-v-v-and-v) · [Recorded VCV aliases](#-recorded-vcv-aliases-triphones) · [Voice colours](#-voice-colours-evec) ·
 [Pack & Install](#-pack--install-tab-3-your-bank-in-a-real-editor) ·
 [V3→V2](#-v3v2-backport-tab-4-your-v3v4-banks-in-vocaloid2) ·
 [Command line](#%EF%B8%8F-command-line-for-people-who-think-guis-are-for-cowards) ·
@@ -79,6 +79,7 @@ rescans the bank, and the window remembers its size, tab and settings.
 | Some transitions just… don't exist | Relabels close relatives (`[a k']` from `[a k]`), mutes onsets for `[Sil C]`, fades vowels for `[V Sil]` |
 | Long notes sounded like a skipping CD | Held-vowel loops follow the vowel to where it *really* ends, and short ones get several takes stitched together (~0.8 s), level-matched and EQ'd to match the notes around them |
 | "ke-ko" came out as "ke-ho" | CV entries whose oto starts right on the burst get their silent closure back |
+| A medial Japanese z-row sound was too affricated | VOCALOID's Japanese phoneme label is written as `dz` / `dZ` in every context. In VCV (`V-dz-V`) context Henkan analyzes and prepares the middle segment as a continuous [z]/[Z] fricative, bridging an accidental stop closure when detected. Phrase-initial `Sil-dz` / nasal-conditioned `N-dz` retain the true affricate onset. The label in `.seg` / `.trans` remains `dz` / `dZ` |
 | `h` sounded like the raw sample | VOCALOID doesn't re-pitch unvoiced sounds, so `h` becomes breath-shaped noise at a sensible volume (not a vowel-loud hiss, we learned that one the hard way) |
 | ん before b / t / k sounded wrong | Every ん flavour (`N\ m n N N' J m'`) gets held-note loops and the units VOCALOID asks for, plus `[Sil N\]` for phrases that start on ん |
 | A unit buzzes like a bee 🐝 | After building, it **reads back the pitch the DBTool analysed** for every unit; if one is an octave off (= buzzy half-pitch undertone), it fixes it and rebuilds. Automatically. While you eat the sandwich |
@@ -87,6 +88,8 @@ rescans the bank, and the window remembers its size, tab and settings.
 | Your bank is a formant synth with no silence anywhere | Fine. `Sil` is only taken where it's actually silent |
 
 The DBTool's file formats were worked out from the DBTool itself — nerd details in [FORMATS.md](FORMATS.md).
+
+For the signal-processing pipeline, analysis windows, boundary detection, pitch tracking, cache limits, and known audio-analysis limitations, see [docs/AUDIO_ANALYSIS.md](docs/AUDIO_ANALYSIS.md).
 
 ## 🌬️ Extras & transitions (breaths, rolled r, end breaths, anything)
 
@@ -144,6 +147,19 @@ The GUI's **ヴ sings as** box (Convert tab), or `--v-mode`:
 - `auto` (default) — `v` / `v'` if the bank has any ヴ, otherwise nothing changes
 - `v` — always `v` / `v'`
 - `b` — the old way: ヴ is `b` / `b'`
+
+## 🧬 Recorded VCV aliases (triphones)
+
+By default a VCV sample like `a か` (`a k a`) supplies the diphones `[a k]` and `[k a]`. Enable **Use matching
+VCV oto.ini aliases when available** (Convert tab, Processing), or pass `--use-oto-aliases` (the older
+`--triphones` flag still works), and Henkan also keeps that recorded alias as one whole `[a k a]` unit. For
+example, an `a ba` oto entry maps to `[a b a]` (shown by VOCALOID as `a ^b a`).
+
+The full VCV is taken directly from its own OTO recording; it no longer needs both component diphones to pass
+their separate candidate-ranking checks. The usual diphones are still written too. If a matching VCV alias is
+not in `oto.ini`, no triphone is invented: the normal diphone, fill, and splice behavior remains the fallback.
+Explicit `--avoid` rules still exclude a triphone containing the avoided transition. Spliced, borrowed, and
+breath units never become triphones. Expect a bigger DB; the report says how many recorded VCV aliases went in.
 
 ## 🎨 Voice colours (EVEC)
 
@@ -305,6 +321,7 @@ Useful `convert` options:
 | `--custom-extra "ALIAS=PH:GROUP[:end]"` | custom extra, repeatable: `cough=ch:UnvoicedPlosives`, `a R=hh:Breaths:end` (see Extras & transitions) |
 | `--list-unknown` | list aliases mapping to nothing (custom-extra candidates) and exit |
 | `--v-mode auto\|v\|b` | ヴ as its own `v` / `v'` (`auto`: when the bank recorded it) or as `b` / `b'` |
+| `--use-oto-aliases` (`--triphones`) | keep matching recorded VCV oto aliases whole as `[V C V]` units when present; otherwise use the normal fallback |
 | `--no-splice` | don't fake missing transitions |
 | `--no-fill` | don't relabel / mute / fade to fill missing units |
 | `--no-normalize` | keep each recording's own loudness |
@@ -368,7 +385,7 @@ next to it as `<folder>__orig`.
 ## 🚧 Known limits
 
 - Spliced / relabelled units are approximations. Real recordings always win when they exist.
-- Phrase-start vowels are built from the steady vowel (the recorded ones faded in slowly in VOCALOID).
+- Phrase-start vowels can be derived from vowel-led VCV recordings when the preceding audio contains enough clean silence and a clear voiced attack (the recorded ones may fade in slowly in VOCALOID).
 - `[d' M]`, `[t' M]` (dyu, tyu) and `[w o]` only exist if your bank recorded them.
 - Some units can stay octave-confused in the DBTool even after the automatic fix (the build log names them).
 
