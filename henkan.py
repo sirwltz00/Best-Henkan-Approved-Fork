@@ -20,7 +20,18 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from u2v import convert, dbtool_io, phonemes as P  # noqa: E402
 
-DEVKIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def _default_devkit_dir():
+    if getattr(sys, 'frozen', False):
+        app_dir = os.path.dirname(os.path.abspath(sys.executable))
+        candidates = (app_dir, os.path.dirname(app_dir))
+        for candidate in candidates:
+            if os.path.isfile(os.path.join(candidate, 'VocaloidDBTool3.exe')):
+                return candidate
+        return app_dir
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+DEVKIT = _default_devkit_dir()
 NO_DICT = '''could not find the VOCALOID3 phonetic dictionary for %s.
 It comes with the DBTool devkit: "Japanese Dictionary\\Japanese_Dictionary.txt" (English:
 "English Dictionary\\english_phonetic_dictionary_20061220.txt"). Either put the Henkan folder inside

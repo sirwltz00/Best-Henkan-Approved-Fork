@@ -56,7 +56,7 @@ voicebank recordings with generated speech.
 - Added a full DBTool preflight for WAV format, transcriptions, segmentation geometry, directive occurrences, dictionary coverage, `.asN` consistency, missing/orphan sidecars and manifest references.
 - DBTool build refuses existing partial-output collisions before running and verifies the generated `.dat`, `.tree` and embedded phoneme dictionary before reporting success.
 - Added OTO Inspector in the GUI with group counts, unmapped aliases, malformed rows and missing-WAV diagnostics.
-- Added one-click Audio QA from Convert/Build tabs, preflight/validate access from the Build tab, clearer fork branding and refreshed ttk styles.
+- Added one-click Audio QA from Convert/Build tabs, preflight/validate access from the Build tab, clearer fork branding and an initial ttk layout refresh.
 - Added regression tests for transition-specific OTO markers, VCV boundaries, OTO edge cases and DBTool preflight/post-build verification.
 
 
@@ -78,3 +78,33 @@ voicebank recordings with generated speech.
 - Added `tools/parameter_probe.py` to generate paired baseline/changed-parameter V4 projects for audibility checks, with optional Growl probe generation.
 - Added validation and regression tests for parameter domains, VSQX XML placement, note-specific OPE/VEL, voice profile packaging and dev-slot output.
 - Real VOCALOID4 Editor/DBTool audible validation remains required; synthetic tests validate serialization and range handling only.
+
+
+## CustomTkinter GUI redesign
+
+- Replaced the old tabbed ttk shell with a CustomTkinter dark workspace and persistent workflow sidebar.
+- Added the Henkan Quick Start page, reorganized Convert / Build singer DB / Pack & Install / V3 → V2 navigation, and retained the existing workflow controls and specialist dialogs.
+- Added a collapsible activity console with CLI output highlighting and a sticky process-status / progress footer.
+- Updated the `.bat` launcher and requirements so CustomTkinter is installed on first launch with the other Python dependencies.
+- Preserved the CLI-driven conversion/build/package commands and the existing settings file format.
+- GUI rendering still needs a Windows smoke test with CustomTkinter installed; this environment did not have network access to install the GUI dependency or launch the Windows DBTool.
+
+
+## Windows application packaging
+
+- Added a PyInstaller GUI entry point and internal console worker so packaged Henkan can stream CLI output and stop background tasks without requiring Python on the target PC.
+- Added a Windows GitHub Actions workflow that runs tests, builds `Henkan.exe` and `HenkanWorker.exe`, and uploads a ready-to-extract Windows ZIP.
+- Frozen builds resolve the app install folder separately from PyInstaller's temporary extraction folder and look for DBTool beside the app or one directory above it.
+- Removed the legacy `Henkan GUI.bat` launcher from the packaged-source tree.
+- The build does not bundle or download DBTool, Yamaha components, dictionaries or voicebank materials.
+
+
+## PC requirements and compatibility diagnostics
+
+- Added a dedicated **PC Requirements** page to the CustomTkinter sidebar and a shortcut from Quick Start.
+- The live report displays Windows version / architecture, processor and logical cores, installed and available RAM, free space on the system temporary-file drive, display resolution, and whether the required `HenkanWorker.exe` helper is present.
+- Added clear minimum and recommended targets for Windows 10/11 x64, CPU, RAM, workspace storage and display resolution. Dedicated GPU is not required.
+- Separated Henkan hardware requirements from external prerequisites: DBTool, phonetic dictionary, VOCALOID editor, the conditional VC++ 2008 x86 runtime for DBTool error 14001, and UAC elevation for install/uninstall.
+- Added `SYSTEM_REQUIREMENTS.md`, updated the README and Windows build guide, and included the requirements document in the GitHub Actions release ZIP.
+- Added unit tests for minimum-spec PCs, unsupported OS/architecture, low RAM/disk, display constraints and a missing worker executable.
+- The report is advisory and does not block startup; the legacy DBTool / actual VOCALOID editor still need separate compatibility verification.

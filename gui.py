@@ -14,11 +14,32 @@ import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-DEVKIT = os.path.dirname(ROOT)
-CLI = os.path.join(ROOT, 'henkan.py')
+from system_requirements import collect_system_info, evaluate_system, overall_status
+from types import SimpleNamespace
+
+import customtkinter as ctk
+
+FROZEN = bool(getattr(sys, 'frozen', False))
+APP_DIR = os.path.dirname(os.path.abspath(sys.executable)) if FROZEN else os.path.dirname(os.path.abspath(__file__))
+# PyInstaller extracts its Python modules into _MEIPASS. Keep source/runtime resources separate
+# from the folder where the user installed Henkan.exe and HenkanWorker.exe.
+ROOT = getattr(sys, '_MEIPASS', APP_DIR) if FROZEN else APP_DIR
+
+
+def _default_devkit_dir():
+    if not FROZEN:
+        return os.path.dirname(ROOT)
+    candidates = (APP_DIR, os.path.dirname(APP_DIR))
+    for candidate in candidates:
+        if os.path.isfile(os.path.join(candidate, 'VocaloidDBTool3.exe')):
+            return candidate
+    return APP_DIR
+
+
+DEVKIT = _default_devkit_dir()
+CLI = os.path.join(ROOT, 'henkan.py')   # script identity; frozen builds dispatch through HenkanWorker.exe
 _APPDATA = os.environ.get('APPDATA', os.path.expanduser('~'))
 SETTINGS = os.path.join(_APPDATA, 'Henkan', 'gui.json')
 OLD_SETTINGS = os.path.join(_APPDATA, 'utau2vocaloid', 'gui.json')     # read once if SETTINGS isn't there yet
@@ -34,7 +55,7 @@ SAVED = ('bank', 'out', 'dict', 'lang', 'colors', 'keep', 'splice', 'fill', 'nor
 
 V3V2_BROWSE_FOLDER = 'Browse for a voicebank folder…'
 V3V2_BROWSE_TREE = 'Browse for a developer-kit .tree…'
-V3V2_PACK_DB = "Use the Pack tab's built DB (.tree)…"
+V3V2_PACK_DB = "Use the Pack & Install page's built DB (.tree)…"
 
 # ヴ choices: the label's first word is the --v-mode value
 V_MODE_LABELS = ('auto — v when the bank has ヴ', "v — own phonemes v, v'", "b — sing it as b, b'")
@@ -42,7 +63,578 @@ V_MODE_LABELS = ('auto — v when the bank has ヴ', "v — own phonemes v, v'",
 UI_FONT, UI_FONT_BOLD = 'Segoe UI', 'Segoe UI Semibold'
 INK, INK_SOFT = '#1d2230', '#a7adbd'          # header band
 ACCENT = '#d6336c'
-HINT, INFO = '#6b7280', '#374151'
+HINT, INFO = '#9aa4b2', '#d4dbe5'
+
+# CustomTkinter theme. Keep the familiar Henkan pink as the single accent;
+# the application remains named simply "Henkan" and is not presented as a product.
+APP_BG = '#11151d'
+PANEL_BG = '#191f2a'
+CARD_BG = '#202938'
+FIELD_BG = '#111925'
+BORDER = '#303c4d'
+TEXT = '#edf1f7'
+TEXT_MUTED = '#9aa7b8'
+ACCENT_HOVER = '#b92359'
+GOOD = '#42b983'
+WARN = '#e6b35a'
+BAD = '#ef7272'
+
+
+def _char_width(value, minimum=32):
+    """Translate ttk's character-based widths into CustomTkinter pixels."""
+    if value is None:
+        return None
+    try:
+        return max(minimum, int(value * 9 + 18))
+    except (TypeError, ValueError):
+        return value
+
+
+def _padding_sides(value):
+    """Normalize ttk's scalar/2-side/4-side padding into left, top, right, bottom."""
+    if value is None:
+        return 0, 0, 0, 0
+    if isinstance(value, (tuple, list)):
+        if len(value) == 4:
+            return tuple(value)
+        if len(value) == 2:
+            return value[0], value[1], value[0], value[1]
+        if len(value) == 1:
+            return value[0], value[0], value[0], value[0]
+    return value, value, value, value
+
+
+def _add_padding(existing, before, after):
+    """Add legacy widget padding to any caller-supplied geometry padding."""
+    if isinstance(existing, (tuple, list)) and len(existing) == 2:
+        old_before, old_after = existing
+    else:
+        old_before = old_after = existing or 0
+    return old_before + before, old_after + after
+
+
+class _StyleCompat:
+    """No-op ttk.Style facade for the small number of legacy style calls."""
+    def __init__(self, *_a, **_kw):
+        pass
+
+    @staticmethod
+    def theme_names():
+        return ()
+
+    @staticmethod
+    def theme_use(*_a, **_kw):
+        return None
+
+    @staticmethod
+    def configure(*_a, **_kw):
+        return None
+
+    @staticmethod
+    def map(*_a, **_kw):
+        return None
+
+    @staticmethod
+    def lookup(*_a, **_kw):
+        return APP_BG
+
+
+class _CTkFrame(ctk.CTkFrame):
+    def __init__(self, master=None, **kwargs):
+        padding = kwargs.pop('padding', None)
+        kwargs.pop('cursor', None)
+        kwargs.pop('style', None)
+        kwargs.pop('relief', None)
+        borderwidth = kwargs.pop('borderwidth', None)
+        if borderwidth is not None:
+            kwargs.setdefault('border_width', borderwidth)
+        background = kwargs.pop('background', None)
+        if background:
+            kwargs.setdefault('fg_color', background)
+        self._legacy_padding = padding
+        kwargs.setdefault('fg_color', 'transparent')
+        kwargs.setdefault('corner_radius', 0)
+        super().__init__(master, **kwargs)
+
+    def _apply_padding(self, method, kwargs):
+        left, top, right, bottom = _padding_sides(self._legacy_padding)
+        if left or right:
+            kwargs['padx'] = _add_padding(kwargs.get('padx', 0), left, right)
+        if top or bottom:
+            kwargs['pady'] = _add_padding(kwargs.get('pady', 0), top, bottom)
+        return method(**kwargs)
+
+    def pack(self, *args, **kwargs):
+        return self._apply_padding(super().pack, kwargs)
+
+    def grid(self, *args, **kwargs):
+        return self._apply_padding(super().grid, kwargs)
+
+    def configure(self, **kwargs):
+        kwargs.pop('style', None)
+        kwargs.pop('padding', None)
+        if 'background' in kwargs:
+            kwargs['fg_color'] = kwargs.pop('background')
+        if 'borderwidth' in kwargs:
+            kwargs['border_width'] = kwargs.pop('borderwidth')
+        kwargs.pop('relief', None)
+        return super().configure(**kwargs)
+
+    config = configure
+
+
+class _CTkLabel(ctk.CTkLabel):
+    def __init__(self, master=None, **kwargs):
+        style = kwargs.pop('style', '')
+        variable = kwargs.pop('textvariable', None)
+        width = kwargs.get('width')
+        if width is not None:
+            kwargs['width'] = _char_width(width)
+        kwargs.pop('padding', None)
+        if 'foreground' in kwargs:
+            kwargs['text_color'] = kwargs.pop('foreground')
+        if 'background' in kwargs:
+            kwargs['fg_color'] = kwargs.pop('background')
+        if style in ('Head.TLabel', 'Sec.TLabel', 'Step.TLabel'):
+            kwargs.setdefault('font', (UI_FONT_BOLD, 12 if style == 'Step.TLabel' else 10))
+            kwargs.setdefault('text_color', TEXT)
+        elif style == 'Num.TLabel':
+            kwargs.setdefault('font', (UI_FONT_BOLD, 15))
+            kwargs.setdefault('text_color', ACCENT)
+        elif style in ('Hint.TLabel', 'Wait.TLabel'):
+            kwargs.setdefault('text_color', TEXT_MUTED)
+        elif style == 'Info.TLabel':
+            kwargs.setdefault('text_color', '#b9c7da')
+        elif style == 'Rec.TLabel' or style == 'Good.TLabel':
+            kwargs.setdefault('text_color', GOOD)
+        elif style == 'Splice.TLabel':
+            kwargs.setdefault('text_color', WARN)
+        elif style == 'Bad.TLabel':
+            kwargs.setdefault('text_color', BAD)
+        kwargs.setdefault('font', (UI_FONT, 10))
+        kwargs.setdefault('text_color', TEXT)
+        kwargs.setdefault('fg_color', 'transparent')
+        super().__init__(master, **kwargs)
+        self._textvar = variable
+        self._textvar_trace = None
+        if variable is not None:
+            self.configure(text=variable.get())
+            self._textvar_trace = variable.trace_add('write', self._sync_textvar)
+
+    def _sync_textvar(self, *_a):
+        try:
+            self.configure(text=self._textvar.get())
+        except (tk.TclError, RuntimeError):
+            pass
+
+    def configure(self, **kwargs):
+        if 'foreground' in kwargs:
+            kwargs['text_color'] = kwargs.pop('foreground')
+        if 'background' in kwargs:
+            kwargs['fg_color'] = kwargs.pop('background')
+        style = kwargs.pop('style', None)
+        if style in ('Head.TLabel', 'Sec.TLabel', 'Step.TLabel'):
+            kwargs.setdefault('text_color', TEXT)
+            kwargs.setdefault('font', (UI_FONT_BOLD, 12 if style == 'Step.TLabel' else 10))
+        elif style == 'Num.TLabel':
+            kwargs.setdefault('text_color', ACCENT)
+            kwargs.setdefault('font', (UI_FONT_BOLD, 15))
+        elif style in ('Hint.TLabel', 'Wait.TLabel'):
+            kwargs.setdefault('text_color', TEXT_MUTED)
+        elif style == 'Info.TLabel':
+            kwargs.setdefault('text_color', '#b9c7da')
+        elif style in ('Rec.TLabel', 'Good.TLabel'):
+            kwargs.setdefault('text_color', GOOD)
+        elif style == 'Splice.TLabel':
+            kwargs.setdefault('text_color', WARN)
+        elif style == 'Bad.TLabel':
+            kwargs.setdefault('text_color', BAD)
+        kwargs.pop('padding', None)
+        if 'width' in kwargs and isinstance(kwargs['width'], (int, float)):
+            kwargs['width'] = _char_width(kwargs['width'])
+        return super().configure(**kwargs)
+
+    config = configure
+
+
+class _CTkEntry(ctk.CTkEntry):
+    def __init__(self, master=None, **kwargs):
+        # CTkEntry supports tkinter.StringVar through its native textvariable option.
+        if 'width' in kwargs:
+            kwargs['width'] = _char_width(kwargs['width'], minimum=55)
+        kwargs.pop('style', None)
+        kwargs.setdefault('fg_color', FIELD_BG)
+        kwargs.setdefault('border_color', BORDER)
+        kwargs.setdefault('text_color', TEXT)
+        kwargs.setdefault('placeholder_text_color', TEXT_MUTED)
+        kwargs.setdefault('height', 32)
+        super().__init__(master, **kwargs)
+
+
+class _CTkButton(ctk.CTkButton):
+    def __init__(self, master=None, **kwargs):
+        style = kwargs.pop('style', '')
+        width = kwargs.get('width')
+        if width is not None:
+            kwargs['width'] = _char_width(width)
+        if style in ('Accent.TButton', 'Go.TButton'):
+            kwargs.setdefault('fg_color', ACCENT)
+            kwargs.setdefault('hover_color', ACCENT_HOVER)
+            kwargs.setdefault('text_color', '#ffffff')
+            kwargs.setdefault('font', (UI_FONT_BOLD, 12 if style == 'Go.TButton' else 10))
+            kwargs.setdefault('height', 42 if style == 'Go.TButton' else 36)
+        elif style == 'Big.TButton':
+            kwargs.setdefault('height', 38)
+            kwargs.setdefault('font', (UI_FONT_BOLD, 10))
+        else:
+            kwargs.setdefault('fg_color', '#303c4d')
+            kwargs.setdefault('hover_color', '#3b4b60')
+            kwargs.setdefault('text_color', TEXT)
+            kwargs.setdefault('height', 32)
+        kwargs.setdefault('corner_radius', 8)
+        super().__init__(master, **kwargs)
+
+
+class _CTkCheckbutton(ctk.CTkCheckBox):
+    def __init__(self, master=None, **kwargs):
+        kwargs.pop('style', None)
+        if 'width' in kwargs:
+            kwargs['width'] = _char_width(kwargs['width'], minimum=22)
+        kwargs.setdefault('text_color', TEXT)
+        kwargs.setdefault('hover_color', ACCENT_HOVER)
+        kwargs.setdefault('fg_color', ACCENT)
+        kwargs.setdefault('border_color', '#6c788a')
+        kwargs.setdefault('font', (UI_FONT, 10))
+        kwargs.setdefault('checkbox_width', 18)
+        kwargs.setdefault('checkbox_height', 18)
+        super().__init__(master, **kwargs)
+
+
+class _CTkComboBox(ctk.CTkComboBox):
+    def __init__(self, master=None, **kwargs):
+        self._virtual_bindings = []
+        self._legacy_command = kwargs.pop('command', None)
+        if 'textvariable' in kwargs:
+            kwargs['variable'] = kwargs.pop('textvariable')
+        if 'width' in kwargs:
+            kwargs['width'] = _char_width(kwargs['width'], minimum=90)
+        if 'values' in kwargs and not isinstance(kwargs['values'], list):
+            kwargs['values'] = list(kwargs['values'])
+        kwargs.pop('style', None)
+        kwargs.setdefault('fg_color', FIELD_BG)
+        kwargs.setdefault('border_color', BORDER)
+        kwargs.setdefault('button_color', '#344258')
+        kwargs.setdefault('button_hover_color', ACCENT_HOVER)
+        kwargs.setdefault('dropdown_fg_color', CARD_BG)
+        kwargs.setdefault('dropdown_text_color', TEXT)
+        kwargs.setdefault('text_color', TEXT)
+        kwargs.setdefault('font', (UI_FONT, 10))
+        kwargs.setdefault('dropdown_font', (UI_FONT, 10))
+        kwargs.setdefault('height', 32)
+        kwargs['command'] = self._selected
+        super().__init__(master, **kwargs)
+
+    def _selected(self, value):
+        if self._legacy_command:
+            self._legacy_command(value)
+        event = SimpleNamespace(widget=self)
+        for callback in tuple(self._virtual_bindings):
+            callback(event)
+
+    def bind(self, sequence=None, func=None, add=None):
+        if sequence == '<<ComboboxSelected>>' and func is not None:
+            self._virtual_bindings.append(func)
+            return None
+        return super().bind(sequence, func, add)
+
+    def __setitem__(self, key, value):
+        self.configure(**{key: value})
+
+    def __getitem__(self, key):
+        if key == 'values':
+            return self.cget('values')
+        return self.cget(key)
+
+
+class _CTkSpinbox(ctk.CTkFrame):
+    """Small CustomTkinter numeric stepper replacing ttk.Spinbox."""
+    def __init__(self, master=None, **kwargs):
+        self.variable = kwargs.pop('textvariable', None)
+        self.minimum = kwargs.pop('from_', 0)
+        self.maximum = kwargs.pop('to', 100)
+        self.increment = kwargs.pop('increment', 1)
+        width = _char_width(kwargs.pop('width', 6), minimum=48)
+        kwargs.pop('style', None)
+        super().__init__(master, width=width + 52, height=32, fg_color='transparent', corner_radius=0)
+        self.grid_columnconfigure(0, weight=1)
+        self.entry = _CTkEntry(self, textvariable=self.variable, width=width, height=32)
+        self.entry.grid(row=0, column=0, sticky='ew')
+        arrows = ctk.CTkFrame(self, fg_color='transparent', corner_radius=0)
+        arrows.grid(row=0, column=1, sticky='ns', padx=(3, 0))
+        self.up = ctk.CTkButton(arrows, text='＋', width=23, height=14, corner_radius=4,
+                                fg_color='#303c4d', hover_color='#3b4b60', command=lambda: self._step(1))
+        self.up.pack(side='top')
+        self.down = ctk.CTkButton(arrows, text='－', width=23, height=14, corner_radius=4,
+                                  fg_color='#303c4d', hover_color='#3b4b60', command=lambda: self._step(-1))
+        self.down.pack(side='bottom')
+
+    def _step(self, direction):
+        try:
+            current = float(self.variable.get()) if self.variable is not None else float(self.entry.get())
+        except (TypeError, ValueError, tk.TclError):
+            current = self.minimum
+        value = max(self.minimum, min(self.maximum, current + direction * self.increment))
+        if self.variable is not None:
+            self.variable.set(int(value) if value.is_integer() else value)
+        else:
+            self.entry.delete(0, 'end')
+            self.entry.insert(0, str(value))
+
+    def configure(self, **kwargs):
+        state = kwargs.pop('state', None)
+        if state is not None:
+            self.entry.configure(state=state)
+            self.up.configure(state=state)
+            self.down.configure(state=state)
+        if 'textvariable' in kwargs:
+            self.variable = kwargs.pop('textvariable')
+            self.entry.configure(textvariable=self.variable)
+        return super().configure(**kwargs)
+
+    config = configure
+
+    def get(self):
+        return self.entry.get()
+
+    def set(self, value):
+        if self.variable is not None:
+            self.variable.set(value)
+        else:
+            self.entry.delete(0, 'end')
+            self.entry.insert(0, str(value))
+
+
+class _CTkScrollbar(ctk.CTkScrollbar):
+    def __init__(self, master=None, **kwargs):
+        if 'orient' in kwargs:
+            kwargs['orientation'] = kwargs.pop('orient')
+        kwargs.setdefault('button_color', '#45536a')
+        kwargs.setdefault('button_hover_color', ACCENT)
+        kwargs.setdefault('fg_color', PANEL_BG)
+        super().__init__(master, **kwargs)
+
+
+class _CTkProgressBar(ctk.CTkProgressBar):
+    def __init__(self, master=None, **kwargs):
+        self._legacy_mode = kwargs.get('mode', 'determinate')
+        length = kwargs.pop('length', None)
+        if length is not None:
+            kwargs.setdefault('width', length)
+        kwargs.setdefault('progress_color', ACCENT)
+        kwargs.setdefault('fg_color', '#303a4b')
+        kwargs.setdefault('height', 8)
+        super().__init__(master, **kwargs)
+
+    def start(self, *_a):
+        super().start()
+
+    def configure(self, **kwargs):
+        mode = kwargs.get('mode')
+        value = kwargs.pop('value', None)
+        if mode:
+            self._legacy_mode = mode
+        result = super().configure(**kwargs)
+        if value is not None:
+            self.set(float(value) / 100 if float(value) > 1 else float(value))
+        return result
+
+    config = configure
+
+
+class _CTkSeparator(ctk.CTkFrame):
+    def __init__(self, master=None, **kwargs):
+        orientation = kwargs.pop('orient', 'horizontal')
+        kwargs.pop('style', None)
+        if orientation == 'vertical':
+            kwargs.setdefault('width', 1)
+            kwargs.setdefault('height', 80)
+        else:
+            kwargs.setdefault('height', 1)
+            kwargs.setdefault('width', 80)
+        kwargs.setdefault('fg_color', BORDER)
+        kwargs.setdefault('corner_radius', 0)
+        super().__init__(master, **kwargs)
+
+
+class _CTkOptionMenu(ctk.CTkOptionMenu):
+    def __init__(self, master, variable, default, *values, **kwargs):
+        kwargs.pop('style', None)
+        if 'width' in kwargs:
+            kwargs['width'] = _char_width(kwargs['width'], minimum=90)
+        kwargs.setdefault('fg_color', '#303c4d')
+        kwargs.setdefault('button_color', '#45536a')
+        kwargs.setdefault('button_hover_color', ACCENT_HOVER)
+        kwargs.setdefault('dropdown_fg_color', CARD_BG)
+        kwargs.setdefault('text_color', TEXT)
+        kwargs.setdefault('font', (UI_FONT, 10))
+        super().__init__(master, variable=variable, values=list(values), **kwargs)
+        if default is not None:
+            self.set(default)
+
+
+class _CTkLabelFrame(_CTkFrame):
+    """Card with a heading row; children are shifted down when the card is laid out."""
+    def __init__(self, master=None, **kwargs):
+        labelwidget = kwargs.pop('labelwidget', None)
+        text = ''
+        if labelwidget is not None:
+            try:
+                text = labelwidget.cget('text').strip()
+            except tk.TclError:
+                pass
+            try:
+                labelwidget.destroy()
+            except tk.TclError:
+                pass
+        padding = kwargs.pop('padding', (10, 6))
+        kwargs.setdefault('fg_color', CARD_BG)
+        kwargs.setdefault('border_width', 1)
+        kwargs.setdefault('border_color', BORDER)
+        kwargs.setdefault('corner_radius', 12)
+        super().__init__(master, padding=padding, **kwargs)
+        self._heading = _CTkLabel(self, text=text, font=(UI_FONT_BOLD, 10), text_color=TEXT,
+                                  fg_color=CARD_BG)
+        # The calling code grids the group before adding its row-0 controls. Float the
+        # title on the border, then reserve top space for those controls after construction.
+        self._heading.place(x=12, y=2)
+        self._heading_reserved = False
+
+    def _reserve_heading_space(self):
+        if self._heading_reserved:
+            return
+        for child in self.winfo_children():
+            if child is self._heading:
+                continue
+            try:
+                info = child.grid_info()
+                if info and int(info.get('row', 0)) == 0:
+                    old_pady = info.get('pady', 0)
+                    bottom = 3
+                    try:
+                        if isinstance(old_pady, (tuple, list)):
+                            bottom = old_pady[1]
+                        elif isinstance(old_pady, str) and ' ' in old_pady:
+                            bottom = int(float(old_pady.split()[-1]))
+                        else:
+                            bottom = int(float(old_pady))
+                    except (TypeError, ValueError):
+                        pass
+                    child.grid_configure(pady=(24, bottom))
+            except (tk.TclError, ValueError):
+                pass
+        self._heading_reserved = True
+
+    def grid(self, *args, **kwargs):
+        result = super().grid(*args, **kwargs)
+        self.after_idle(self._reserve_heading_space)
+        return result
+
+
+class _TTKCompat:
+    Style = _StyleCompat
+    Frame = _CTkFrame
+    Label = _CTkLabel
+    Entry = _CTkEntry
+    Button = _CTkButton
+    Checkbutton = _CTkCheckbutton
+    Combobox = _CTkComboBox
+    Spinbox = _CTkSpinbox
+    Scrollbar = _CTkScrollbar
+    Progressbar = _CTkProgressBar
+    Separator = _CTkSeparator
+    OptionMenu = _CTkOptionMenu
+    LabelFrame = _CTkLabelFrame
+
+
+ttk = _TTKCompat()
+
+
+class NavigationPages(ctk.CTkFrame):
+    """Sidebar navigation with a page stack; keeps Notebook's small public API."""
+    def __init__(self, master):
+        super().__init__(master, fg_color='transparent', corner_radius=0)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        self.sidebar = ctk.CTkFrame(self, width=202, fg_color=PANEL_BG, corner_radius=14,
+                                    border_width=1, border_color=BORDER)
+        self.sidebar.grid(row=0, column=0, sticky='nsew', padx=(0, 10), pady=2)
+        self.sidebar.grid_propagate(False)
+        ctk.CTkLabel(self.sidebar, text='WORKSPACE', text_color=TEXT_MUTED,
+                     font=(UI_FONT_BOLD, 9)).pack(anchor='w', padx=18, pady=(18, 10))
+        self.nav_buttons = ctk.CTkFrame(self.sidebar, fg_color='transparent')
+        self.nav_buttons.pack(fill='x', padx=9)
+        self.page_area = ctk.CTkFrame(self, fg_color='transparent', corner_radius=0)
+        self.page_area.grid(row=0, column=1, sticky='nsew')
+        self.page_area.grid_columnconfigure(0, weight=1)
+        self.page_area.grid_rowconfigure(0, weight=1)
+        self.pages = []
+        self.buttons = []
+        self.current = 0
+        self._tab_changed = None
+
+    def add(self, page, text=''):
+        index = len(self.pages)
+        self.pages.append(page)
+        page.grid(row=0, column=0, sticky='nsew')
+        page.grid_remove()
+        button = ctk.CTkButton(self.nav_buttons, text=text, anchor='w', height=42,
+                               fg_color='transparent', hover_color='#2b3545',
+                               text_color=TEXT_MUTED, font=(UI_FONT, 10), corner_radius=8,
+                               command=lambda i=index: self.select(i))
+        button.pack(fill='x', pady=2)
+        self.buttons.append(button)
+        if index == 0:
+            self.select(0)
+
+    def select(self, index):
+        if isinstance(index, str):
+            try:
+                index = self.pages.index(self.nametowidget(index))
+            except (ValueError, tk.TclError):
+                return
+        try:
+            index = int(index)
+        except (TypeError, ValueError):
+            return
+        if index < 0 or index >= len(self.pages):
+            return
+        for i, page in enumerate(self.pages):
+            if i == index:
+                page.grid()
+            else:
+                page.grid_remove()
+        for i, button in enumerate(self.buttons):
+            active = i == index
+            button.configure(fg_color=ACCENT if active else 'transparent',
+                             text_color='#ffffff' if active else TEXT_MUTED,
+                             hover_color=ACCENT_HOVER if active else '#2b3545')
+        changed = index != self.current
+        self.current = index
+        if changed and self._tab_changed:
+            self.after_idle(lambda: self._tab_changed(SimpleNamespace(widget=self)))
+
+    def index(self, what):
+        if what == 'current':
+            return self.current
+        if what in self.pages:
+            return self.pages.index(what)
+        return int(what)
+
+    def bind(self, sequence=None, func=None, add=None):
+        if sequence == '<<NotebookTabChanged>>':
+            self._tab_changed = func
+            return None
+        return super().bind(sequence, func, add)
 
 
 class ScrollFrame(ttk.Frame):
@@ -50,12 +642,12 @@ class ScrollFrame(ttk.Frame):
 
     def __init__(self, parent):
         super().__init__(parent)
-        bg = ttk.Style(self).lookup('TFrame', 'background') or 'SystemButtonFace'
+        bg = APP_BG
         self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=bg)
         self.vsb = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
         self.canvas.pack(side='left', fill='both', expand=True)
-        self.body = ttk.Frame(self.canvas)
+        self.body = tk.Frame(self.canvas, background=APP_BG, borderwidth=0, highlightthickness=0)
         self._win = self.canvas.create_window((0, 0), window=self.body, anchor='nw')
         self.body.bind('<Configure>', self._fit)
         self.canvas.bind('<Configure>', self._fit)
@@ -124,14 +716,23 @@ class Runner:
         return self.proc is not None
 
     def start(self, cmd, title, done=None):
+        if not cmd:
+            return
         if self.busy:
             messagebox.showinfo('Busy', 'Wait for the current step to finish (or press Stop).')
             return
         self.app.log('\n$ %s\n' % ' '.join('"%s"' % c if ' ' in c else c for c in cmd[1:]), 'cmd')
         flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-        self.proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                     stdin=subprocess.DEVNULL, text=True, encoding='utf-8',
-                                     errors='replace', bufsize=1, creationflags=flags)
+        try:
+            self.proc = subprocess.Popen(cmd, cwd=APP_DIR if FROZEN else ROOT,
+                                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                         stdin=subprocess.DEVNULL, text=True, encoding='utf-8',
+                                         errors='replace', bufsize=1, creationflags=flags)
+        except OSError as ex:
+            messagebox.showerror('Could not start task',
+                                 'Henkan could not start its command worker.\n\n%s\n\n'
+                                 'Make sure HenkanWorker.exe is next to Henkan.exe.' % ex)
+            return
         self.done, self.title = done, title
         self.app.set_busy(title)
         threading.Thread(target=self._read, args=(self.proc,), daemon=True).start()
@@ -174,11 +775,11 @@ class Runner:
         self.app.log('stopped\n', 'err')
 
 
-class App(tk.Tk):
+class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         from u2v import __version__
-        self.title('Best Henkan Approved Fork — UTAU → VOCALOID ' + __version__)
+        self.title('Henkan — UTAU → VOCALOID ' + __version__)
         self.geometry('960x900')
         self.minsize(820, 640)
         self.runner = Runner(self)
@@ -254,100 +855,101 @@ class App(tk.Tk):
 
     # --------------------------------------------------------------------- UI
     def _ui(self):
-        style = ttk.Style(self)
-        if 'vista' in style.theme_names():
-            style.theme_use('vista')
-        elif 'clam' in style.theme_names():
-            style.theme_use('clam')
-        style.configure('Head.TLabel', font=(UI_FONT_BOLD, 10))
-        style.configure('Sec.TLabel', font=(UI_FONT_BOLD, 10), foreground=INK)
-        style.configure('Hint.TLabel', foreground=HINT)
-        style.configure('Info.TLabel', foreground=INFO)
-        style.configure('Rec.TLabel', foreground='#15803d')
-        style.configure('Splice.TLabel', foreground='#b45309')
-        style.configure('Accent.TButton', font=(UI_FONT_BOLD, 9), padding=(16, 7),
-                        foreground='#ffffff', background=ACCENT)
-        style.map('Accent.TButton', background=[('active', '#b91f55'), ('disabled', '#d7a0b3')],
-                  foreground=[('disabled', '#f5e9ed')])
-        style.configure('Big.TButton', padding=(12, 6))
-        style.configure('TButton', padding=(9, 5))
-        style.configure('TEntry', padding=(5, 4))
-        style.configure('TCombobox', padding=(5, 3))
-        style.configure('TNotebook.Tab', padding=(14, 7), font=(UI_FONT_BOLD, 9))
-        style.configure('TLabelframe', padding=(8, 5))
-        style.configure('TLabelframe.Label', font=(UI_FONT_BOLD, 9), foreground=INK)
-        style.configure('TProgressbar', thickness=9)
-
-        style.configure('Step.TLabel', font=(UI_FONT_BOLD, 13), foreground=INK)
-        style.configure('Num.TLabel', font=(UI_FONT_BOLD, 13), foreground=ACCENT)
-        style.configure('Easy.TLabel', font=(UI_FONT, 10))
-        style.configure('Good.TLabel', font=(UI_FONT, 10), foreground='#15803d')
-        style.configure('Bad.TLabel', font=(UI_FONT, 10), foreground='#c2410c')
-        style.configure('Wait.TLabel', font=(UI_FONT, 10), foreground=HINT)
-        style.configure('Go.TButton', font=(UI_FONT_BOLD, 12), padding=(24, 10))
+        """Build the CustomTkinter workspace around the existing, tested workflows."""
+        ctk.set_appearance_mode('dark')
+        ctk.set_default_color_theme('dark-blue')
+        self.configure(fg_color=APP_BG)
 
         self._header()
 
-        self.src = src = ttk.Frame(self, padding=(12, 10, 12, 0))
-        src.pack(fill='x')
+        # Source context strip. It is hidden on Quick Start and shown on the advanced pages.
+        self.src = src = ttk.Frame(self, padding=(16, 10, 16, 8), fg_color=PANEL_BG,
+                                   corner_radius=12, border_width=1, border_color=BORDER)
+        src.pack(fill='x', padx=16, pady=(10, 4))
         src.columnconfigure(1, weight=1)
-        ttk.Label(src, text='UTAU bank', style='Head.TLabel').grid(row=0, column=0, sticky='w')
-        ttk.Entry(src, textvariable=self.v['bank']).grid(row=0, column=1, sticky='ew', padx=6)
+        ttk.Label(src, text='UTAU voicebank', style='Head.TLabel').grid(row=0, column=0, sticky='w')
+        ttk.Entry(src, textvariable=self.v['bank']).grid(row=0, column=1, sticky='ew', padx=8)
         ttk.Button(src, text='Browse…', command=self.pick_bank).grid(row=0, column=2)
         ttk.Button(src, text='Rescan', command=self.scan).grid(row=0, column=3, padx=(6, 0))
-        ttk.Button(src, text='OTO Inspector…', command=self.show_oto_report).grid(row=0, column=4, padx=(6, 0))
-        ttk.Label(src, textvariable=self.info, style='Info.TLabel').grid(row=1, column=1, columnspan=3,
-                                                                         sticky='w', padx=6, pady=(2, 0))
-        ttk.Label(src, text='Phonetic dictionary', style='Head.TLabel').grid(row=2, column=0, sticky='w',
-                                                                            pady=(6, 0))
-        ttk.Entry(src, textvariable=self.v['dict']).grid(row=2, column=1, sticky='ew', padx=6, pady=(6, 0))
-        ttk.Button(src, text='Browse…', command=self.pick_dict).grid(row=2, column=2, pady=(6, 0))
-        ttk.Label(src, text='From the devkit: Japanese Dictionary\\Japanese_Dictionary.txt (English: English '
-                            'Dictionary\\english_phonetic_dictionary_20061220.txt). Found automatically when it can be.',
-                  style='Hint.TLabel', wraplength=760).grid(row=3, column=1, columnspan=3, sticky='w', padx=6)
+        ttk.Button(src, text='OTO Inspector', command=self.show_oto_report).grid(row=0, column=4, padx=(6, 0))
+        ttk.Label(src, textvariable=self.info, style='Info.TLabel').grid(
+            row=1, column=1, columnspan=4, sticky='w', padx=8, pady=(3, 0))
+        ttk.Label(src, text='Phonetic dictionary', style='Head.TLabel').grid(
+            row=2, column=0, sticky='w', pady=(8, 0))
+        ttk.Entry(src, textvariable=self.v['dict']).grid(row=2, column=1, sticky='ew', padx=8, pady=(8, 0))
+        ttk.Button(src, text='Browse…', command=self.pick_dict).grid(row=2, column=2, pady=(8, 0))
+        ttk.Label(src, text='Japanese_Dictionary.txt / english_phonetic_dictionary_20061220.txt',
+                  style='Hint.TLabel').grid(row=3, column=1, columnspan=4, sticky='w', padx=8, pady=(2, 0))
 
-        bar = ttk.Frame(self, padding=(12, 4, 12, 8))
-        bar.pack(side='bottom', fill='x')
-        self.prog = ttk.Progressbar(bar, mode='determinate', length=160)
-        self.prog.pack(side='left')
-        ttk.Label(bar, textvariable=self.status).pack(side='left', padx=8)
-        self.stop_btn = ttk.Button(bar, text='Stop', command=self.runner.stop, state='disabled')
-        self.stop_btn.pack(side='right')
-        ttk.Button(bar, text='Clear log', command=self.clear_log).pack(side='right', padx=6)
-
-        self.pw = pw = ttk.PanedWindow(self, orient='vertical')
-        pw.pack(fill='both', expand=True, padx=12, pady=(8, 0))
-        self.nb = nb = ttk.Notebook(pw)
-        nb.add(self._tab_easy(nb), text='★  Easy')
-        nb.add(self._tab_convert(nb), text='①  Convert')
-        nb.add(self._tab_build(nb), text='②  Build singer DB')
-        nb.add(self._tab_pack(nb), text='③  Pack & Install')
-        nb.add(self._tab_v3v2(nb), text='④  V3 → V2 backport')
+        # Main workspace: a persistent workflow sidebar instead of crowded tabs.
+        self.pw = work = ttk.Frame(self, fg_color='transparent')
+        work.pack(fill='both', expand=True, padx=16, pady=(8, 4))
+        work.grid_columnconfigure(0, weight=1)
+        work.grid_rowconfigure(0, weight=1)
+        self.nb = NavigationPages(work)
+        self.nb.grid(row=0, column=0, sticky='nsew')
+        self.nb.add(self._tab_easy(self.nb.page_area), '✦   Quick Start')
+        self.nb.add(self._tab_convert(self.nb.page_area), '01   Convert')
+        self.nb.add(self._tab_build(self.nb.page_area), '02   Build singer DB')
+        self.nb.add(self._tab_pack(self.nb.page_area), '03   Pack & Install')
+        self.nb.add(self._tab_v3v2(self.nb.page_area), '04   V3 → V2')
+        self.nb.add(self._tab_system(self.nb.page_area), '05   PC Requirements')
         try:
-            nb.select(int(self.v['tab'].get()))
-        except (ValueError, tk.TclError):
-            pass
-        nb.bind('<<NotebookTabChanged>>', lambda _e: self._tab_changed())
-        pw.add(nb, weight=4)
+            self.nb.select(int(self.v['tab'].get()))
+        except (TypeError, ValueError):
+            self.nb.select(0)
 
-        lf = ttk.Frame(pw, padding=(0, 6, 0, 0))
-        pw.add(lf, weight=1)
-        self.text = tk.Text(lf, wrap='word', font=('Consolas', 9), height=8, relief='flat', padx=8, pady=6,
-                            background='#1e1e1e', foreground='#d4d4d4', insertbackground='#d4d4d4')
-        sb = ttk.Scrollbar(lf, command=self.text.yview)
+        # Collapsible activity console; output is still the exact CLI stream.
+        self.log_panel = ttk.Frame(work, fg_color=PANEL_BG, corner_radius=12,
+                                   border_width=1, border_color=BORDER)
+        self.log_panel.grid(row=1, column=0, sticky='ew', pady=(8, 0))
+        self.log_header = ttk.Frame(self.log_panel, padding=(12, 5, 10, 5), fg_color='transparent')
+        self.log_header.pack(fill='x')
+        ttk.Label(self.log_header, text='ACTIVITY', style='Head.TLabel').pack(side='left')
+        ttk.Label(self.log_header, text='Live command output', style='Hint.TLabel').pack(side='left', padx=10)
+        self.log_toggle = ttk.Button(self.log_header, text='Hide', width=7, command=self._toggle_log)
+        self.log_toggle.pack(side='right')
+        self.log_body = ttk.Frame(self.log_panel, fg_color='transparent')
+        self.log_body.pack(fill='both', expand=True, padx=8, pady=(0, 8))
+        self.text = tk.Text(self.log_body, wrap='word', font=('Consolas', 9), height=6, relief='flat',
+                            padx=10, pady=8, background='#0d131c', foreground='#d8e1ed',
+                            insertbackground='#d8e1ed', selectbackground='#5d3150',
+                            highlightthickness=1, highlightbackground=BORDER, borderwidth=0)
+        sb = ttk.Scrollbar(self.log_body, command=self.text.yview)
         self.text.configure(yscrollcommand=sb.set)
         sb.pack(side='right', fill='y')
         self.text.pack(fill='both', expand=True)
-        self.text.tag_configure('cmd', foreground='#9cdcfe')
-        self.text.tag_configure('ok', foreground='#6a9955')
-        self.text.tag_configure('warn', foreground='#dcdcaa')
-        self.text.tag_configure('err', foreground='#f48771')
+        self.text.tag_configure('cmd', foreground='#8ecbff')
+        self.text.tag_configure('ok', foreground='#68d6a4')
+        self.text.tag_configure('warn', foreground='#efc56e')
+        self.text.tag_configure('err', foreground='#ff8b8b')
+
+        # Sticky status / progress footer.
+        bar = ttk.Frame(self, padding=(16, 6, 16, 10), fg_color='transparent')
+        bar.pack(side='bottom', fill='x')
+        self.prog = ttk.Progressbar(bar, mode='determinate', length=160)
+        self.prog.pack(side='left')
+        ttk.Label(bar, textvariable=self.status, style='Hint.TLabel').pack(side='left', padx=10)
+        self.stop_btn = ttk.Button(bar, text='Stop process', command=self.runner.stop, state='disabled')
+        self.stop_btn.pack(side='right')
+        ttk.Button(bar, text='Clear log', command=self.clear_log).pack(side='right', padx=6)
+
+        self.nb.bind('<<NotebookTabChanged>>', lambda _e: self._tab_changed())
         self.bind_all('<Control-l>', lambda _e: self.clear_log())
         self.bind_all('<F5>', lambda _e: self.scan())
         self._tab_changed()
 
+    def _toggle_log(self):
+        if self.log_body.winfo_manager():
+            self.log_body.pack_forget()
+            self.log_toggle.configure(text='Show')
+            self.log_panel.grid_configure(sticky='ew')
+        else:
+            self.log_body.pack(fill='both', expand=True, padx=8, pady=(0, 8))
+            self.log_toggle.configure(text='Hide')
+
     def _tab_changed(self):
-        """The Easy tab asks for the bank itself: the bank/dictionary rows on top are for the other tabs."""
+        """Quick Start asks for the bank itself: the bank/dictionary rows on top are for the other tabs."""
         easy = self.nb.index('current') == 0
         if easy and getattr(self, '_src_shown', True):
             self.src.pack_forget()
@@ -357,12 +959,13 @@ class App(tk.Tk):
         if easy:
             self._easy_check()
             self.after(300, self._small_log)          # once the window has its real size
+        elif self.nb.index('current') == 5:
+            self.refresh_system_report()
 
     def _small_log(self):
-        """On the Easy tab the log is only for the curious: a few lines at the bottom."""
-        h = self.pw.winfo_height()
-        if h > 300 and self.pw.sashpos(0) < h - 160:
-            self.pw.sashpos(0, h - 130)
+        """Keep the Quick Start console compact without a draggable legacy sash."""
+        if getattr(self, 'text', None) is not None:
+            self.text.configure(height=4)
 
     # ------------------------------------------------------------------ easy
     EASY_STEPS = (('convert', 'Convert the UTAU sounds'),
@@ -442,12 +1045,150 @@ class App(tk.Tk):
             row=2, column=0, columnspan=3, sticky='w', pady=(6, 0))
 
         ttk.Label(f, text='Want more control (folders, voice colours, extras, CompIDs, V3→V2)? '
-                          'The numbered tabs above have every option.', style='Hint.TLabel').grid(
+                          'Use the workflow sidebar for conversion options, database building, packaging and V3 → V2 tools.', style='Hint.TLabel').grid(
             row=8, column=0, sticky='w', pady=(20, 0))
+        ctk.CTkButton(f, text='PC requirements & compatibility check', height=34,
+                      fg_color=CARD_BG, hover_color='#2b3545', text_color=TEXT,
+                      border_width=1, border_color=BORDER,
+                      command=lambda: self.nb.select(5)).grid(row=9, column=0, sticky='w', pady=(12, 4))
         self._easy_run = None
         self._step_log = []
         self.v['db_name'].trace_add('write', lambda *_a: self._easy_check())
         return sf
+
+    def _tab_system(self, nb):
+        """Show practical PC requirements and a live, read-only compatibility report."""
+        sf = ScrollFrame(nb)
+        body = sf.body
+        body.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(body, text='PC requirements & compatibility', font=(UI_FONT_BOLD, 22),
+                     text_color=TEXT).grid(row=0, column=0, columnspan=2, sticky='w', padx=18, pady=(18, 4))
+        ctk.CTkLabel(body, text='Henkan is a Windows desktop application. This check reads your PC specs and '
+                     'points out common reasons a task may fail. It does not change your system.',
+                     text_color=TEXT_MUTED, wraplength=760, justify='left').grid(
+            row=1, column=0, columnspan=2, sticky='w', padx=18, pady=(0, 12))
+
+        summary = ctk.CTkFrame(body, fg_color=CARD_BG, border_width=1, border_color=BORDER, corner_radius=12)
+        summary.grid(row=2, column=0, columnspan=2, sticky='ew', padx=18, pady=(0, 12))
+        summary.grid_columnconfigure(0, weight=1)
+        self.system_summary = ctk.CTkLabel(summary, text='Run the compatibility check to see your PC status.',
+                                           text_color=TEXT, font=(UI_FONT_BOLD, 13), anchor='w',
+                                           justify='left', wraplength=720)
+        self.system_summary.grid(row=0, column=0, sticky='ew', padx=14, pady=12)
+        ctk.CTkButton(summary, text='↻  Refresh check', width=142, height=34,
+                      fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                      command=self.refresh_system_report).grid(row=0, column=1, padx=12, pady=8)
+
+        spec_card = ctk.CTkFrame(body, fg_color=PANEL_BG, border_width=1, border_color=BORDER, corner_radius=12)
+        spec_card.grid(row=3, column=0, columnspan=2, sticky='ew', padx=18, pady=(0, 12))
+        ctk.CTkLabel(spec_card, text='DETECTED ON THIS PC', font=(UI_FONT_BOLD, 10),
+                     text_color=TEXT_MUTED).pack(anchor='w', padx=14, pady=(12, 8))
+        self.system_rows_frame = ctk.CTkFrame(spec_card, fg_color='transparent')
+        self.system_rows_frame.pack(fill='x', padx=12, pady=(0, 12))
+
+        req_card = ctk.CTkFrame(body, fg_color=PANEL_BG, border_width=1, border_color=BORDER, corner_radius=12)
+        req_card.grid(row=4, column=0, columnspan=2, sticky='ew', padx=18, pady=(0, 12))
+        ctk.CTkLabel(req_card, text='MINIMUM VS RECOMMENDED', font=(UI_FONT_BOLD, 10),
+                     text_color=TEXT_MUTED).pack(anchor='w', padx=14, pady=(12, 8))
+        requirement_text = (
+            'OPERATING SYSTEM\nMinimum: Windows 10 64-bit\nRecommended: Windows 11 64-bit\n\n'
+            'PROCESSOR\nMinimum: modern Intel/AMD 64-bit dual-core\nRecommended: modern 4-core CPU or better\n\n'
+            'MEMORY\nMinimum: 4 GB RAM\nRecommended: 8 GB; 16 GB for large voicebanks\n\n'
+            'STORAGE\nMinimum: 2 GB free working space\nRecommended: 10 GB+ free on an SSD\n\n'
+            'DISPLAY\nMinimum: 820 × 640 to fit the app window\nRecommended: 1280 × 800 or higher\n\n'
+            'GRAPHICS\nNo dedicated GPU required; Henkan analysis is CPU-based.'
+        )
+        ctk.CTkLabel(req_card, text=requirement_text, text_color=TEXT, font=(UI_FONT, 11),
+                     justify='left', anchor='w').pack(fill='x', padx=14, pady=(0, 14))
+
+        prereq = ctk.CTkFrame(body, fg_color=PANEL_BG, border_width=1, border_color=BORDER, corner_radius=12)
+        prereq.grid(row=5, column=0, columnspan=2, sticky='ew', padx=18, pady=(0, 12))
+        prereq.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(prereq, text='EXTERNAL COMPONENTS & WHAT THEY ARE NEEDED FOR',
+                     font=(UI_FONT_BOLD, 10), text_color=TEXT_MUTED).grid(
+            row=0, column=0, columnspan=2, sticky='w', padx=14, pady=(12, 8))
+        self.system_external = {}
+        for r, (key, title, description) in enumerate((
+                ('dbtool', 'VocaloidDBTool3.exe', 'Required only for Build singer DB. Supplied/configured separately.'),
+                ('dictionary', 'Phonetic dictionary', 'Required for conversion and DB creation. Choose the language-matched dictionary.'),
+                ('editor', 'VOCALOID editor', 'Optional for conversion/building; needed to install or audition the result.'),
+                ('runtime', 'VC++ 2008 runtime (x86)', 'Only relevant if the legacy DBTool reports side-by-side error 14001.'),
+                ('admin', 'Administrator permission', 'Needed for voicebank install/uninstall because Windows registry and Program Files may be changed.'),
+        )):
+            ctk.CTkLabel(prereq, text=title, text_color=TEXT, font=(UI_FONT_BOLD, 11)).grid(
+                row=r + 1, column=0, sticky='w', padx=14, pady=5)
+            lb = ctk.CTkLabel(prereq, text=description, text_color=TEXT_MUTED, font=(UI_FONT, 10),
+                              anchor='w', justify='left', wraplength=650)
+            lb.grid(row=r + 1, column=1, sticky='ew', padx=12, pady=5)
+            self.system_external[key] = lb
+
+        note = ('These are practical project targets, not official Yamaha hardware specifications or a guarantee '
+                'that every legacy DBTool/VOCALOID installation will work. The packaged Henkan build is 64-bit. '
+                'The DBTool is a separate legacy Windows program and is not included. Its own runtime, dictionary, '
+                'permissions and compatibility can fail even when the PC meets Henkan’s requirements.')
+        ctk.CTkLabel(body, text=note, text_color=TEXT_MUTED, font=(UI_FONT, 10),
+                     wraplength=780, justify='left').grid(row=6, column=0, columnspan=2,
+                                                          sticky='w', padx=18, pady=(0, 18))
+        return sf
+
+    def refresh_system_report(self):
+        """Refresh the PC report while keeping the application usable on lower-spec machines."""
+        if not hasattr(self, 'system_rows_frame'):
+            return
+        info = collect_system_info(
+            app_dir=APP_DIR,
+            screen_size=(self.winfo_screenwidth(), self.winfo_screenheight()),
+            frozen=FROZEN,
+        )
+        rows = evaluate_system(info)
+        status, summary = overall_status(rows)
+        colors = {'good': GOOD, 'info': '#78a9d6', 'warn': WARN, 'bad': BAD}
+        symbols = {'good': '✓', 'info': '•', 'warn': '!', 'bad': '✕'}
+        color = colors.get(status, TEXT)
+        self.system_summary.configure(text=summary, text_color=color)
+
+        for widget in self.system_rows_frame.winfo_children():
+            widget.destroy()
+        for index, row in enumerate(rows):
+            cell = ctk.CTkFrame(self.system_rows_frame, fg_color=CARD_BG, corner_radius=8)
+            cell.pack(fill='x', pady=3)
+            top = ctk.CTkFrame(cell, fg_color='transparent')
+            top.pack(fill='x', padx=9, pady=(7, 1))
+            ctk.CTkLabel(top, text='%s  %s' % (symbols.get(row['status'], '•'), row['name']),
+                         text_color=colors.get(row['status'], TEXT), font=(UI_FONT_BOLD, 10),
+                         anchor='w').pack(side='left', fill='x', expand=True)
+            ctk.CTkLabel(top, text=row['detected'], text_color=TEXT, font=(UI_FONT, 10),
+                         anchor='e').pack(side='right')
+            ctk.CTkLabel(cell, text='Minimum: %s  ·  Recommended: %s' %
+                         (row['minimum'], row['recommended']), text_color=TEXT_MUTED,
+                         font=(UI_FONT, 9), anchor='w', wraplength=760, justify='left').pack(
+                fill='x', padx=9, pady=(0, 2))
+            ctk.CTkLabel(cell, text=row['explanation'], text_color=TEXT_MUTED,
+                         font=(UI_FONT, 9), anchor='w', wraplength=760,
+                         justify='left').pack(fill='x', padx=9, pady=(0, 7))
+
+        dbtool = self.v['dbtool'].get() if hasattr(self, 'v') else ''
+        dictionary = self.v['dict'].get() if hasattr(self, 'v') else ''
+        dbtool_found = bool(dbtool and os.path.isfile(dbtool))
+        dictionary_found = bool(dictionary and os.path.isfile(dictionary))
+        self.system_external['dbtool'].configure(
+            text=('Found: %s · needed for DB builds only' % os.path.basename(dbtool)
+                  if dbtool_found else
+                  'Missing / not configured · needed for Build singer DB only'),
+            text_color=GOOD if dbtool_found else WARN)
+        self.system_external['dictionary'].configure(
+            text=('Found: %s · language must match the selected bank' % os.path.basename(dictionary)
+                  if dictionary_found else
+                  'Missing / not configured · choose Japanese or English dictionary for conversion'),
+            text_color=GOOD if dictionary_found else BAD)
+        self.system_external['editor'].configure(
+            text='Detected separately when the install page scans Windows. Needed for installation or rendering, '
+                 'not for voicebank conversion.')
+        self.system_external['runtime'].configure(
+            text='Not checked automatically. Install the x86 redistributable only if DBTool shows error 14001.')
+        self.system_external['admin'].configure(
+            text='No permanent admin mode required. Windows should request elevation only for Install/Uninstall.')
 
     def _easy_set(self, key, ok, text, fix=None, fix_text='Find it…'):
         lb, btn = self.easy_checks[key]
@@ -522,8 +1263,11 @@ class App(tk.Tk):
 
     @staticmethod
     def _missing_packages():
+        if FROZEN:
+            # Dependencies are bundled in Henkan.exe / HenkanWorker.exe; pip is not part of the app.
+            return []
         import importlib.util
-        need = ['numpy'] + (['pywinauto', 'win32gui'] if sys.platform == 'win32' else [])
+        need = ['numpy', 'customtkinter'] + (['pywinauto', 'win32gui'] if sys.platform == 'win32' else [])
         return [m for m in need if importlib.util.find_spec(m) is None]
 
     def _easy_install_packages(self):
@@ -619,18 +1363,22 @@ class App(tk.Tk):
 
     def _header(self):
         from u2v import __version__
-        h = tk.Frame(self, background=INK)
+        h = ctk.CTkFrame(self, height=76, fg_color='#0d1118', corner_radius=0)
         h.pack(fill='x')
-        tk.Label(h, text='変換', background=INK, foreground=ACCENT,
-                 font=('Yu Gothic UI', 22, 'bold')).pack(side='left', padx=(16, 8), pady=6)
-        t = tk.Frame(h, background=INK)
-        t.pack(side='left')
-        tk.Label(t, text='Best Henkan Approved Fork', background=INK, foreground='#ffffff',
-                 font=(UI_FONT_BOLD, 14)).pack(anchor='w')
-        tk.Label(t, text='UTAU voicebank conversion  ·  phoneme-aware DB preparation  ·  VOCALOID packaging',
-                 background=INK, foreground=INK_SOFT, font=(UI_FONT, 9)).pack(anchor='w')
-        tk.Label(h, text='v' + __version__, background=INK, foreground=INK_SOFT,
-                 font=(UI_FONT, 9)).pack(side='right', padx=16)
+        h.pack_propagate(False)
+        mark = ctk.CTkFrame(h, width=48, height=48, fg_color=ACCENT, corner_radius=13)
+        mark.pack(side='left', padx=(18, 12), pady=14)
+        mark.pack_propagate(False)
+        ctk.CTkLabel(mark, text='変', text_color='#ffffff',
+                     font=('Yu Gothic UI', 21, 'bold')).place(relx=0.5, rely=0.48, anchor='center')
+        title_box = ctk.CTkFrame(h, fg_color='transparent')
+        title_box.pack(side='left', pady=12)
+        ctk.CTkLabel(title_box, text='Henkan', text_color='#ffffff',
+                     font=(UI_FONT_BOLD, 17)).pack(anchor='w')
+        ctk.CTkLabel(title_box, text='UTAU → VOCALOID  ·  recording-based conversion',
+                     text_color=TEXT_MUTED, font=(UI_FONT, 9)).pack(anchor='w', pady=(1, 0))
+        ctk.CTkLabel(h, text='v' + __version__, text_color=TEXT_MUTED,
+                     font=(UI_FONT, 9)).pack(side='right', padx=20)
 
     def _row(self, parent, r, label, var, browse=None, width=None, browse_text='Browse…'):
         ttk.Label(parent, text=label).grid(row=r, column=0, sticky='w', pady=3)
@@ -669,8 +1417,10 @@ class App(tk.Tk):
         box = ttk.Frame(left)
         box.pack(fill='both', expand=True, pady=4)
         self.glist = tk.Listbox(box, selectmode='extended', height=9, width=30, exportselection=False,
-                                activestyle='none', relief='solid', borderwidth=1, highlightthickness=0,
-                                selectbackground=ACCENT, selectforeground='#ffffff')
+                                activestyle='none', relief='flat', borderwidth=0, highlightthickness=1,
+                                highlightbackground=BORDER, highlightcolor=ACCENT, background=FIELD_BG,
+                                foreground=TEXT, selectbackground=ACCENT, selectforeground='#ffffff',
+                                font=(UI_FONT, 10))
         gsb = ttk.Scrollbar(box, command=self.glist.yview)
         self.glist.configure(yscrollcommand=gsb.set)
         self.glist.pack(side='left', fill='both', expand=True)
@@ -901,7 +1651,7 @@ class App(tk.Tk):
         return f
 
     def _tab_v3v2(self, nb):
-        """V3→V2 backport: convert VOCALOID3/4 banks (or a Pack-tab .tree) for VOCALOID2."""
+        """V3→V2 backport: convert VOCALOID3/4 banks (or a Pack & Install .tree) for VOCALOID2."""
         f = ttk.Frame(nb, padding=12)
         f.columnconfigure(0, weight=1)
         f.rowconfigure(2, weight=1)
@@ -921,9 +1671,10 @@ class App(tk.Tk):
         g.rowconfigure(0, weight=1)
         g.columnconfigure(0, weight=1)
         g.columnconfigure(1, weight=0)
-        self.v3v2_lib = tk.Listbox(g, height=6, exportselection=False, activestyle='none', relief='solid',
-                                   borderwidth=1, highlightthickness=0, selectbackground=ACCENT,
-                                   selectforeground='#ffffff')
+        self.v3v2_lib = tk.Listbox(g, height=6, exportselection=False, activestyle='none', relief='flat',
+                                   borderwidth=0, highlightthickness=1, highlightbackground=BORDER, highlightcolor=ACCENT,
+                                   background=FIELD_BG, foreground=TEXT, selectbackground=ACCENT,
+                                   selectforeground='#ffffff', font=(UI_FONT, 10))
         self.v3v2_lib.grid(row=0, column=0, sticky='nsew', padx=(0, 10))
         b = ttk.Frame(g)
         b.grid(row=0, column=1, sticky='n')
@@ -1003,7 +1754,7 @@ class App(tk.Tk):
             db = self.v['pkg_db'].get().rstrip('\\/')
             tree_path = db + '.tree'
             if not db or not os.path.isfile(tree_path):
-                messagebox.showinfo('V3→V2', 'The Pack tab has no built DB yet — build one first.')
+                messagebox.showinfo('V3→V2', 'The Pack & Install page has no built DB yet — build one first.')
                 return
             self._v3v2_classify(tree_path)
         else:
@@ -1214,6 +1965,15 @@ class App(tk.Tk):
             messagebox.showinfo('Not found', '%s does not exist yet.' % (path or 'That'))
 
     def _py(self, script, *args):
+        if FROZEN:
+            worker = os.path.join(APP_DIR, 'HenkanWorker.exe')
+            if not os.path.isfile(worker):
+                messagebox.showerror('Henkan worker missing',
+                                     'HenkanWorker.exe must be in the same folder as Henkan.exe.\n\n'
+                                     'Re-extract the complete Henkan-Windows package.')
+                return []
+            mode = '--qa' if os.path.basename(script).lower() == 'qa.py' else '--cli'
+            return [worker, mode] + [str(a) for a in args]
         return [sys.executable, '-I', '-u', script] + [str(a) for a in args]
 
     # ------------------------------------------------------------------ pick
@@ -1292,7 +2052,7 @@ class App(tk.Tk):
             if not mapped:
                 unknown.append((entry.raw_alias, entry.alias, entry.wav))
         lines = [
-            'BEST HENKAN — OTO INSPECTOR',
+            'HENKAN — OTO INSPECTOR',
             'Bank: %s' % bank,
             'Detected language: %s' % lang,
             'Usable OTO entries: %d' % len(entries),
@@ -1312,8 +2072,8 @@ class App(tk.Tk):
             lines.append('  none')
         if len(unknown) > 100 or len(diagnostics) > 100:
             lines += ['', 'Display truncated. Full conversion diagnostics are also written to the conversion log.']
-        top = tk.Toplevel(self)
-        top.title('OTO Inspector — Best Henkan')
+        top = ctk.CTkToplevel(self)
+        top.title('OTO Inspector — Henkan')
         top.geometry('900x620')
         top.minsize(680, 420)
         top.transient(self)
@@ -1324,7 +2084,10 @@ class App(tk.Tk):
                   style='Hint.TLabel').pack(anchor='w', pady=(2, 8))
         body = ttk.Frame(frame)
         body.pack(fill='both', expand=True)
-        view = tk.Text(body, wrap='none', font=('Consolas', 9), padx=8, pady=6)
+        view = tk.Text(body, wrap='none', font=('Consolas', 9), padx=8, pady=6,
+                       background='#0d131c', foreground='#d8e1ed', insertbackground='#d8e1ed',
+                       selectbackground='#5d3150', highlightthickness=1,
+                       highlightbackground=BORDER, borderwidth=0)
         ys = ttk.Scrollbar(body, orient='vertical', command=view.yview)
         xs = ttk.Scrollbar(frame, orient='horizontal', command=view.xview)
         view.configure(yscrollcommand=ys.set, xscrollcommand=xs.set)
@@ -1515,7 +2278,7 @@ class App(tk.Tk):
             it['ph'].trace_add('write', show)
             show()
 
-        top = tk.Toplevel(self)
+        top = ctk.CTkToplevel(self)
         top.title('Custom extras & transitions')
         top.transient(self)
         top.grab_set()
@@ -1545,9 +2308,10 @@ class App(tk.Tk):
         body = sf.body
         SHOW = 200                                    # widgets per view; search always covers every alias
 
-        cov_box = ttk.LabelFrame(top, labelwidget=ttk.Label(top, text=' Transitions ', style='Sec.TLabel'),
-                                 padding=(10, 4))
+        cov_box = ttk.Frame(top, padding=(10, 4), fg_color=CARD_BG, corner_radius=10,
+                            border_width=1, border_color=BORDER)
         cov_box.grid(row=4, column=0, sticky='ew', padx=12, pady=(8, 0))
+        ttk.Label(cov_box, text='Transitions', style='Sec.TLabel').pack(anchor='w', pady=(2, 5))
         cov_sf = ScrollFrame(cov_box)
         cov_sf.configure(height=150)
         cov_sf.pack(fill='both', expand=True)
@@ -1733,7 +2497,7 @@ class App(tk.Tk):
         if not isinstance(saved, dict):
             saved = {}
 
-        top = tk.Toplevel(self)
+        top = ctk.CTkToplevel(self)
         top.title('Pitch & Append Assignment')
         top.transient(self)
         top.grab_set()
@@ -1746,19 +2510,19 @@ class App(tk.Tk):
             text='Assign each detected OTO group to a voice append (colour) and its actual recording pitch. '
                  'The complete group name is used, so Natural/_0 and Power/_0 can have different pitches. '
                  'Leave Pitch blank when it is unknown; Henkan will keep its existing fallback behaviour. '
-                 'To include several append names in one singer DB, use Voice colours = evec in the Convert tab.'
+                 'To include several append names in one singer DB, use Voice colours = evec on the Convert page.'
         ).grid(row=0, column=0, sticky='ew')
 
         holder = ttk.Frame(top, padding=(14, 0, 14, 0))
         holder.grid(row=1, column=0, sticky='nsew')
         holder.columnconfigure(0, weight=1)
         holder.rowconfigure(0, weight=1)
-        canvas = tk.Canvas(holder, highlightthickness=0, borderwidth=0)
+        canvas = tk.Canvas(holder, highlightthickness=0, borderwidth=0, background=APP_BG)
         scroll = ttk.Scrollbar(holder, orient='vertical', command=canvas.yview)
         canvas.configure(yscrollcommand=scroll.set)
         canvas.grid(row=0, column=0, sticky='nsew')
         scroll.grid(row=0, column=1, sticky='ns')
-        table = ttk.Frame(canvas, padding=(2, 2, 10, 2))
+        table = tk.Frame(canvas, background=APP_BG, borderwidth=0, highlightthickness=0)
         window = canvas.create_window((0, 0), window=table, anchor='nw')
         table.bind('<Configure>', lambda _e: canvas.configure(scrollregion=canvas.bbox('all')))
         canvas.bind('<Configure>', lambda e: canvas.itemconfigure(window, width=e.width))
@@ -1993,7 +2757,7 @@ class App(tk.Tk):
                           done=lambda code: (self._built(code), then() if (then and code == 0) else None))
 
     def _built(self, code):
-        """A built DB is what the Pack tab packs next: point it there."""
+        """A built DB is what the Pack & Install page packs next: point it there."""
         if code != 0:
             return
         db = self.v['db_path'].get()
@@ -2029,10 +2793,10 @@ class App(tk.Tk):
             self.v['pkg_out'].set(os.path.join(os.path.dirname(db.rstrip('\\/')), 'package'))
 
     def gen_compid(self):
-        """CompID Studio: pick a language, take a pool ID or roll a random one, check it, use it."""
+        """CompID generator: pick a language, take a pool ID or roll a random one, check it, use it."""
         from u2v import compid as _C
-        top = tk.Toplevel(self)
-        top.title('CompID Studio — your bank\'s ID card')
+        top = ctk.CTkToplevel(self)
+        top.title('CompID Generator — your bank\'s ID')
         top.transient(self)
         top.grab_set()
         top.minsize(520, 460)
@@ -2232,7 +2996,7 @@ class App(tk.Tk):
             db = self.v['db_path'].get()
             self.v['pkg_db'].set(db)
         if not db or not os.path.exists(db + '.tree'):
-            return messagebox.showwarning('Pack', 'Build the singer DB first (tab 2), then point at it.')
+            return messagebox.showwarning('Pack', 'Build the singer DB first (Build singer DB page), then point at it.')
         args = [db]
         if self.v['pkg_out'].get():
             args += ['--out', self.v['pkg_out'].get()]
@@ -2331,6 +3095,8 @@ class App(tk.Tk):
 
 
 def main():
+    ctk.set_appearance_mode('dark')
+    ctk.set_default_color_theme('dark-blue')
     if sys.platform == 'win32':
         try:
             import ctypes

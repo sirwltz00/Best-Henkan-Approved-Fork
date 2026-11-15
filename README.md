@@ -6,15 +6,13 @@
 [![Release](https://img.shields.io/github/v/release/GooberNiko/Henkan)](https://github.com/GooberNiko/Henkan/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078d4)
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab)
+![Python 3.10+ source](https://img.shields.io/badge/source-Python%203.10%2B-3776ab)
 
 **Your UTAU voicebank, but it's a VOCALOID now. Your V3/V4 banks, but they sing in VOCALOID2.**
 
 *Henkan* (変換) means conversion — and that's the whole tool: UTAU bank → VOCALOID singer DB → packed
 voicebank → installed in your editor, plus a V3→V2 backport that rewrites V3/V4 voicebanks so VOCALOID2
 can sing them. (It used to be called **utau2vocaloid**. Same tool, better name.)
-
-![The Henkan window](docs/screenshot.png)
 
 You have an UTAU bank. You have the VOCALOID3 developer kit. You thought "surely there's a button for this."
 There was not. Now there is. It's this.
@@ -30,8 +28,8 @@ click "Add Articulations" 790 times with your own human finger.
 **Jump to:** [Quick start](#-quick-start-the-i-just-want-it-to-sing-path) ·
 [The window](#%EF%B8%8F-the-window) · [Extras](#%EF%B8%8F-extras--transitions-breaths-rolled-r-end-breaths-anything) ·
 [ヴ](#🅥-ヴ-gets-a-real-v-v-and-v) · [Recorded VCV aliases](#-recorded-vcv-aliases-triphones) · [Voice colours](#-voice-colours-evec) ·
-[Pack & Install](#-pack--install-tab-3-your-bank-in-a-real-editor) ·
-[V3→V2](#-v3v2-backport-tab-4-your-v3v4-banks-in-vocaloid2) ·
+[Pack & Install](#-pack--install-your-bank-in-a-real-editor) ·
+[V3→V2](#-v3v2-backport-your-v3v4-banks-in-vocaloid2) ·
 [Command line](#%EF%B8%8F-command-line-for-people-who-think-guis-are-for-cowards) ·
 [Troubleshooting](#-troubleshooting)
 
@@ -39,16 +37,13 @@ click "Add Articulations" 790 times with your own human finger.
 
 ## 🚀 Quick start (the "I just want it to sing" path)
 
-1. Download the [latest release](https://github.com/GooberNiko/Henkan/releases/latest) and unzip it
-   **inside your devkit folder** (next to `VocaloidDBTool3.exe`).
-2. Have [Python 3](https://www.python.org/downloads/) (tick **Add python.exe to PATH** in the installer).
-3. Double-click **`Henkan GUI.bat`**. The first time, it installs what Henkan needs from `requirements.txt` by
-   itself.
-4. On the **★ Easy** tab: **Choose folder…** (your UTAU bank), check that step 2 is all green ✔, then press
-   **▶ Make my voicebank**. Go make a sandwich. 🥪 (It takes a few minutes. The DBTool runs in the
-   background on a hidden desktop and clicks itself, so you can keep using the PC. If it gets stuck back
-   there, it runs again with the DBTool on screen: then hands off, it is not haunted.)
-5. **Install** → your bank becomes a real voicebank in your VOCALOID editor.
+1. Download the **Henkan-Windows** build from the repository's latest GitHub Actions run (or its Releases page, if the maintainer publishes one) and unzip it.
+2. Keep **`Henkan.exe`** and **`HenkanWorker.exe`** together in the same folder.
+3. Launch **`Henkan.exe`**. No Python installation is needed for the packaged Windows build.
+4. On the **Quick Start** page, choose your UTAU bank and check that the prerequisites are ready. Select the DBTool executable and its phonetic dictionary if Henkan does not detect them automatically, then press **▶ Make my voicebank**.
+5. **Pack & Install** → install the resulting bank in your VOCALOID editor.
+
+The DBTool is a separate Windows prerequisite. It is not bundled in the Henkan build; use only a copy you are authorized to use. Do not delete `HenkanWorker.exe`: Henkan launches it internally for conversion, validation, DB building, packaging and Audio QA.
 
 Something red in step 2? Its **Find it…** / **Install** button fixes it. Something failed? Henkan tells you
 what went wrong and what to do, in words.
@@ -57,23 +52,23 @@ That's it. That's the README. …okay fine, there's more below.
 
 ## 🖥️ The window
 
-It opens on **★ Easy**: pick the bank, see what's ready (✔) and what's missing (✘, with a button that
+It opens on **Quick Start**: pick the bank, see what's ready (✔) and what's missing (✘, with a button that
 fixes it), name the singer, one button for convert → build → pack, then Install. Every option has its usual
-default there. For everything else there are four more tabs, in the order you use them:
+default there. For everything else, use the workflow sidebar:
 
-| Tab | What it's for |
+| Workflow | What it's for |
 |---|---|
-| **★ Easy** | The whole road in three steps and one button |
-| **① Convert** | Pick folders, then convert. The options fold into sections (**Processing**, **Extras & transitions**, **Voice colours**, **Fine-tuning**); a closed section still says what it's set to, so nothing hides from you |
-| **② Build singer DB** | Drives the DBTool, hidden in the background. When it's done, the Pack tab already points at the new DB |
-| **③ Pack & Install** | `.ddb` + `.ddi` + `.vvd`, a CompID, and an install into any VOCALOID editor on the PC |
-| **④ V3 → V2 backport** | V3/V4 banks rewritten so VOCALOID2 can sing them |
+| **Quick Start** | The whole road in three steps and one button |
+| **Convert** | Pick folders, then convert. The options fold into sections (**Processing**, **Extras & transitions**, **Voice colours**, **Fine-tuning**); a closed section still says what it's set to, so nothing hides from you |
+| **Build singer DB** | Drives the DBTool, hidden in the background. When it's done, Pack & Install already points at the new DB |
+| **Pack & Install** | `.ddb` + `.ddi` + `.vvd`, a CompID, and an install into any VOCALOID editor on the PC |
+| **V3 → V2** | V3/V4 banks rewritten so VOCALOID2 can sing them |
 
-The log at the bottom shows exactly what the command line would print (drag the bar above it to resize),
-warnings in yellow. The status bar shows how long the current step has taken. The source-bank row includes an
-**OTO Inspector** for unmapped aliases and broken WAV references; the Convert and Build tabs include an
+The dark CustomTkinter interface uses a persistent workflow sidebar, rounded panels and the familiar Henkan pink accent. The collapsible activity console shows exactly what the command line prints, with warnings in yellow. The status
+footer shows progress and how long the current step has taken. The source-bank row includes an
+**OTO Inspector** for unmapped aliases and broken WAV references; the Convert and Build pages include an
 **Audio QA** report and a conversion **Preflight / Validate** action. Ctrl+L clears the log, F5 rescans the bank,
-and the window remembers its size, tab and settings.
+and the window remembers its size, current workflow and settings.
 
 ## 🤔 What it actually does
 
@@ -113,7 +108,7 @@ Built in there's one: **vowel endings**. `a R`, `i R`… become the `[a Sil]` yo
 
 Everything else your bank recorded on the side (breaths, a rolled r, a laugh, a cough, a growl) is a
 **custom extra**: you pick which aliases become which phoneme, and what you name it is what you type in
-the editor. Open **Custom extras → Edit…** on the Convert tab:
+the editor. Open **Custom extras → Edit…** on the Convert page:
 
 - Tick the sounds you want, give each a phoneme name and a dictionary group (Breaths, or the DBTool's own
   twelve: Vowels, Semivowels, Nasals, UnvoicedFricatives, VoicedFricatives, Whisper, VoicedAffricates,
@@ -157,7 +152,7 @@ the same way `k` / `k'` work. Type `v a`, `v' i`, `v M` … in the editor. `v` a
 `dictionary.txt` as VoicedFricatives, and the gaps fill like any other consonant: `[a v']` is borrowed from
 `[a v]`, `[Sil v']` is cut from `ヴぃ`, and so on (the report shows which). `ん` before v becomes `m`.
 
-The GUI's **ヴ sings as** box (Convert tab), or `--v-mode`:
+The GUI's **ヴ sings as** box (Convert page), or `--v-mode`:
 
 - `auto` (default) — `v` / `v'` if the bank has any ヴ, otherwise nothing changes
 - `v` — always `v` / `v'`
@@ -166,7 +161,7 @@ The GUI's **ヴ sings as** box (Convert tab), or `--v-mode`:
 ## 🧬 Recorded VCV aliases (triphones)
 
 By default a VCV sample like `a か` (`a k a`) supplies the diphones `[a k]` and `[k a]`. Enable **Use matching
-VCV oto.ini aliases when available** (Convert tab, Processing), or pass `--use-oto-aliases` (the older
+VCV oto.ini aliases when available** (Convert page, Processing), or pass `--use-oto-aliases` (the older
 `--triphones` flag still works), and Henkan also keeps that recorded alias as one whole `[a k a]` unit. For
 example, an `a ba` oto entry maps to `[a b a]` (shown by VOCALOID as `a ^b a`).
 
@@ -193,15 +188,15 @@ Banks with several colours (Standard / Soft / Whisper…):
 
 Want different colours than the automatic ones? The GUI shows every detected colour with its entry
 count, its vowels, and the `prefix.map` affixes after you pick a bank. Choose each colour's EVEC
-number — the Convert tab shows one dropdown per detected colour (`main`, `#1`…`#9`, `skip`),
+number — the Convert page shows one dropdown per detected colour (`main`, `#1`…`#9`, `skip`),
 so there is nothing to type (`skip` drops one) — and, if you like, which phonemes each covers
 (`Soft:a,i,M,e,o`). The converter finds that colour's transitions (vowels and such) from its own
 entries; a colour with no vowels warns you but still converts. Command line: `--evec-map` and
 `--evec-phonemes` (a `#` number implies `--colors evec`; automatic numbers never reuse yours).
 
-## 📦 Pack & Install (tab 3: your bank in a real editor)
+## 📦 Pack & Install: your bank in a real editor
 
-Once the DB is built, the Pack & Install tab turns it into a voicebank package and installs it
+Once the DB is built, the Pack & Install page turns it into a voicebank package and installs it
 into any VOCALOID editor on your PC — point at the install folder, press Install, say Yes to the
 Windows permission prompt:
 
@@ -220,7 +215,7 @@ Windows permission prompt:
    `install.bat`/`uninstall.bat` (same shape as VVD Editor's) launched with a UAC prompt — read
    them in the package folder first if you like.
 
-**Import VQM samples** is an optional Convert-tab feature for VOCALOID4. Official commercial voicebanks
+**Import VQM samples** is an optional Convert-page feature for VOCALOID4. Official commercial voicebanks
 commonly expose three sibling folders — `art/`, `sta/` and `vqm/` — with the numbered audio samples in
 `vqm/` named `vqm_0.wav`, `vqm_1.wav`, and so on. Point Henkan at the commercial bank root, the `vqm/`
 folder itself, or one WAV. Henkan discovers all `vqm_N.wav` files in numeric order, validates each
@@ -307,22 +302,22 @@ whose language matches your bank. Rules: one bank = one ID, no two banks on the 
 share one, and repackaging the same bank reuses its ID. (The trailing checksum is trivia —
 the editor never checks it, so some real bank IDs don't even decode.)
 
-The **CompID Studio** (the Generate button, or `compid` on the CLI) speaks this language:
+The **CompID Generator** (the Generate button, or `compid` on the CLI) speaks this language:
 a language dropdown, **Pick from pool** (known-valid V4 Japanese/Chinese/English IDs — 19/30/25),
 **Craft for language** (a fresh ID with the right language digit — the Korean/Spanish move, since
 no V4 pools exist for them), **Random** (a fresh opaque ID), paste-and-check with a decoded
 view (raw, vendor, language, product, version), and a raw-string encoder. CLI mirrors it:
 `compid --lang Korean`, `--craft`, `--random`, `--check <ID>`, `--encode <raw>`, `--decode <ID>`.
 
-## ⏪ V3→V2 backport (tab 4: your V3/V4 banks in VOCALOID2)
+## ⏪ V3→V2 backport: your V3/V4 banks in VOCALOID2
 
 VOCALOID2 can't read V3/V4 voicebanks — but the singing data (`.ddb`) is the same format in every
-version; only the index (`.ddi`) changed. The backport tab (the vendored `v3v2` engine from the V3V2
+version; only the index (`.ddi`) changed. The V3 → V2 page (the vendored `v3v2` engine from the V3V2
 side project) rewrites the index the way VOCALOID2's engine reads it and installs the result as a
 singer of its own, in the language you pick:
 
 1. Pick an installed V3/V4 library (they list themselves), browse for a voicebank folder, a
-   developer-kit `.tree` — or hand over the Pack tab's built DB straight from this tool.
+   developer-kit `.tree` — or hand over the Pack & Install page's built DB straight from this tool.
 2. **Convert**, pick a language (**Auto** reads it from the voicebank's phonemes), **Install in
    VOCALOID2** (Windows asks for administrator rights once), open VOCALOID2 and sing.
 
@@ -351,17 +346,38 @@ vowel (`[kh Q@]` is the bank's `[kh Q]`, and a held `Q@` holds `Q`), and ends in
 
 ## 🧰 Requirements
 
-- Windows (the DBTool is a Windows program; `convert` alone runs anywhere)
-- Python 3.10+
-- `pip install -r requirements.txt` (numpy; pywinauto + pywin32 for building)
-- The VOCALOID3 developer kit: `VocaloidDBTool3.exe` + its `Japanese Dictionary` / `English Dictionary`
-  folders. Put this folder inside the devkit folder, or pass `--dict` and `--dbtool`.
-- Optional: VOCALOID4 Editor for Developer, for the test-render tools in `tools/`.
+The packaged Henkan application targets **64-bit Windows 10 or Windows 11 on an Intel/AMD x64 PC**. The Windows build is tested in CI on a current 64-bit Windows runner; older Windows releases, 32-bit Windows, and Windows on ARM are not supported targets.
+
+### PC / laptop specifications
+
+These are practical project recommendations, **not official Yamaha hardware specifications or a guarantee for every voicebank size**. The app's **PC Requirements** page checks the local machine and explains warnings without blocking startup.
+
+| Component | Minimum working target | Recommended |
+|---|---|---|
+| Operating system | Windows 10 64-bit | Windows 11 64-bit |
+| CPU | Modern Intel/AMD 64-bit, 2 cores | Modern 4-core CPU or better |
+| RAM | 4 GB | 8 GB; 16 GB for large voicebanks / long recordings |
+| Free storage | 2 GB working space | 10 GB+ free on an SSD; large projects may need more |
+| Display | App window can resize down to 820 × 640 | 1280 × 800 or higher |
+| Graphics | Integrated graphics is sufficient | No dedicated GPU required |
+
+Henkan analyses audio on the CPU. It does not require CUDA, a discrete graphics card, a microphone, or an always-on internet connection. Keep additional free space for temporary WAVs and output files; a project can use several times the size of its source recordings. Slow CPUs, low RAM, a nearly full drive, or a small display can make processing slower or less reliable even when the application opens.
+
+### Separate software prerequisites
+
+- **`Henkan.exe` and `HenkanWorker.exe`** must remain together in the same extracted folder. The worker is required for conversion, validation, DB building, packaging and Audio QA.
+- **`VocaloidDBTool3.exe` and the language-matched phonetic dictionary** are separate prerequisites for building a singer DB. They are not included in the Henkan package; configure files you are authorized to use.
+- If the legacy DBTool shows Windows side-by-side error **14001**, it may need the **Microsoft Visual C++ 2008 Redistributable (x86)**, even on 64-bit Windows.
+- **VOCALOID editor** is optional for conversion and DB creation, but needed for installing into an editor and auditioning the result.
+- **Administrator permission** is only needed for install/uninstall steps that write to protected folders or Windows registry locations. Normal conversion and packaging do not need permanent administrator mode.
+- Packaged users do not need Python or pip. Contributors running from source need Python 3.10+ and `pip install -r requirements.txt`; `pytest` and `pyinstaller` are used for tests/builds.
+
+See [SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md) for the full checklist and [Troubleshooting](#-troubleshooting) for common DBTool startup issues.
 
 ## ⌨️ Command line (for people who think GUIs are for cowards)
 
-(`henkan.py` was called `utau2vocaloid.py` before the rename. The old name still works, so old scripts
-and shortcuts keep running.)
+(These commands are for source checkouts/contributors. The packaged Windows download launches through Henkan.exe.
+`henkan.py` was called `utau2vocaloid.py` before the rename; the compatibility entry point remains in source.)
 
 ```bat
 :: 1. convert an UTAU bank
@@ -451,9 +467,7 @@ next to it as `<folder>__orig`.
   Fixed in the next version. The output folder had another folder inside it (often the UTAU bank itself), and
   the build tried to copy that folder like a file. Running as administrator doesn't help. Until you update,
   move that folder out of the output folder.
-- **"Windows cannot find 'pythonw'".** Python isn't installed, or wasn't added to PATH. Install it from
-  python.org with **Add python.exe to PATH** ticked. The new `Henkan GUI.bat` says this itself, and it also
-  finds Python through the `py` launcher.
+- **Henkan opens but a task cannot start.** Check that `HenkanWorker.exe` is beside `Henkan.exe`. Re-extract the complete Windows package if it is missing or quarantined by security software.
 - **"The application has failed to start because its side-by-side configuration is incorrect"
   (VocaloidDBTool3.exe).** The DBTool needs the **Microsoft Visual C++ 2008 Redistributable, x86** version, even
   on 64-bit Windows. Install it, restart the PC, build again.
