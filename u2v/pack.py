@@ -25,6 +25,7 @@ Pipeline (all verified against real installs on a VOCALOID machine):
     python -I henkan.py install <package dir> --editor "<editor folder>"
 """
 import io
+import json
 import os
 import random
 import re
@@ -414,55 +415,364 @@ class DDIModel:
         return art_idx, art_data
 
     def read_vqm(self):
+        """Read VQM metadata, accepting both the DBTool and ddb-tools field widths.
+
+        VQM records exist in two observed layouts: a 16-bit marker before the five floats,
+        and a 32-bit marker used by ddb-tools' VQM stream writer. The old reader assumed
+        only the former and could misalign every following field in imported growl banks.
+        """
+        start, end, records = _parse_vqm_chunk(self.ddi_bytes)
+        self.ddi_data.seek(end)
         vqm_data = {}
-        assert self.ddi_data.read(8) == b'\xff' * 8
-        assert self.ddi_data.read(4).decode() == 'VQM '
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-        assert self.ddi_data.read(8) == b'\xff' * 8
-        assert self.ddi_data.read(4).decode() == 'VQMu'
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-        vqmp_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-        assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == vqmp_num
-        for _i in range(vqmp_num):
-            vqmp_data = {'snd': '', 'epr': []}
-            assert self.ddi_data.read(8) == b'\xff' * 8
-            assert self.ddi_data.read(4).decode() == 'VQMp'
-            assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-            assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-            assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 1
-            vqmp_data['duration'] = struct.unpack('<d', self.ddi_data.read(8))[0]
-            assert int.from_bytes(self.ddi_data.read(2), byteorder='little') == 1
-            vqmp_data['pitch1'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-            vqmp_data['pitch2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-            vqmp_data['unknown2'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-            vqmp_data['dynamics'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-            vqmp_data['tempo'] = struct.unpack('<f', self.ddi_data.read(4))[0]
-            assert int.from_bytes(self.ddi_data.read(4), byteorder='little') == 0
-            assert self.ddi_data.read(4) == b'\xff' * 4
-            epr_num = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-            epr_list = []
-            for _k in range(epr_num):
-                ddi_epr_offset = self.ddi_data.tell()
-                epr_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
-                epr_list.append(f'{ddi_epr_offset:0>8x}={epr_offset:0>8x}')
-            vqmp_data['epr'] = epr_list
-            vqmp_data['fs'] = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-            assert self.ddi_data.read(2) == b'\x01\x00'
-            snd_identifier = int.from_bytes(self.ddi_data.read(4), byteorder='little')
-            ddi_snd_offset = self.ddi_data.tell()
-            snd_offset = int.from_bytes(self.ddi_data.read(8), byteorder='little')
-            vqmp_data['snd'] = f'{ddi_snd_offset:0>8x}={snd_offset:016x}_{snd_identifier:08x}'
-            assert self.ddi_data.read(0x10) == b'\xff' * 0x10
-            vqmp_idx = int(_read_str(self.ddi_data))
-            vqm_data[vqmp_idx] = vqmp_data
-            assert _read_str(self.ddi_data) == 'GROWL'
-            assert _read_str(self.ddi_data) == 'vqm'
+        for rec in records:
+            epr_list = ['%08x=%08x' % (pos, offset) for pos, offset in rec['epr']]
+            vqm_data[int(rec['index'])] = {
+                'snd': '%08x=%016x_%08x' % (rec['snd_pos'], rec['snd_offset'], rec['snd_id']),
+                'epr': epr_list,
+                'duration': rec['duration'],
+                'pitch1': rec['pitch1'],
+                'pitch2': rec['pitch2'],
+                'unknown2': rec['unknown2'],
+                'dynamics': rec['dynamics'],
+                'tempo': rec['tempo'],
+                'fs': rec['fs'],
+            }
         return vqm_data
+
+
+# ------------------------------------------------------------------ VOCALOID4 Growl (VQM) import
+
+_VQM_MARKER = b'\xff' * 8 + b'VQM '
+_VQM_FOOTER = b'\x05\x00\x00\x00voice'
+
+
+def _parse_vqm_chunk(ddi_bytes):
+    """Parse the VQM block without depending on the rest of a singer DDI.
+
+    Returns (start, end, records). Pointer positions are absolute offsets in the DDI;
+    offsets are absolute positions in the corresponding DDB. The parser deliberately
+    tries both observed marker widths rather than trusting a single undocumented variant.
+    """
+    start = ddi_bytes.find(_VQM_MARKER)
+    if start < 0:
+        raise PackError('the DDI has no VQM (Growl) block')
+
+    def parse(marker_width):
+        stream = io.BytesIO(ddi_bytes)
+        stream.seek(start)
+
+        def take(n):
+            b = stream.read(n)
+            if len(b) != n:
+                raise ValueError('truncated VQM block')
+            return b
+
+        def u32():
+            return struct.unpack('<I', take(4))[0]
+
+        def string():
+            n = u32()
+            if n > 4096:
+                raise ValueError('unreasonable VQM string length')
+            return take(n).decode('latin-1')
+
+        if take(8) != b'\xff' * 8 or take(4) != b'VQM ':
+            raise ValueError('invalid VQM header')
+        if (u32(), u32(), u32(), u32()) != (0, 1, 0, 1):
+            raise ValueError('unsupported VQM header')
+        if take(8) != b'\xff' * 8 or take(4) != b'VQMu':
+            raise ValueError('invalid VQMu header')
+        if (u32(), u32(), u32()) != (0, 1, 0):
+            raise ValueError('unsupported VQMu header')
+        count = u32()
+        if count > 100000 or u32() != count:
+            raise ValueError('invalid VQM record count')
+        records = []
+        for _ in range(count):
+            if take(8) != b'\xff' * 8 or take(4) != b'VQMp':
+                raise ValueError('invalid VQMp header')
+            if (u32(), u32(), u32()) != (0, 0, 1):
+                raise ValueError('unsupported VQMp header')
+            duration = struct.unpack('<d', take(8))[0]
+            marker = take(marker_width)
+            if int.from_bytes(marker, 'little') != 1:
+                raise ValueError('invalid VQMp marker')
+            pitch1, pitch2, unknown2, dynamics, tempo = struct.unpack('<5f', take(20))
+            if u32() != 0 or take(4) != b'\xff' * 4:
+                raise ValueError('invalid VQMp EpR header')
+            epr_count = u32()
+            if epr_count > 100000:
+                raise ValueError('unreasonable VQM EpR count')
+            epr = []
+            for _j in range(epr_count):
+                pos = stream.tell()
+                epr.append((pos, struct.unpack('<Q', take(8))[0]))
+            fs = u32()
+            if take(2) != b'\x01\x00':
+                raise ValueError('invalid VQM SND marker')
+            snd_id = u32()
+            snd_pos = stream.tell()
+            snd_offset = struct.unpack('<Q', take(8))[0]
+            if take(0x10) != b'\xff' * 0x10:
+                raise ValueError('invalid VQM trailer marker')
+            index = string()
+            if string() != 'GROWL' or string() != 'vqm':
+                raise ValueError('unexpected VQM record labels')
+            records.append({
+                'index': index, 'duration': duration, 'pitch1': pitch1, 'pitch2': pitch2,
+                'unknown2': unknown2, 'dynamics': dynamics, 'tempo': tempo,
+                'epr': epr, 'fs': fs, 'snd_id': snd_id, 'snd_pos': snd_pos,
+                'snd_offset': snd_offset,
+            })
+        return stream.tell(), records
+
+    errors = []
+    for width in (4, 2):
+        try:
+            end, records = parse(width)
+            return start, end, records
+        except (AssertionError, UnicodeDecodeError, ValueError, struct.error) as ex:
+            errors.append('%d-byte marker: %s' % (width, ex))
+    raise PackError('could not parse VQM block (%s)' % '; '.join(errors))
+
+
+def _extract_ddb_chunk(ddb_bytes, offset, tag):
+    """Read and validate a length-prefixed FRM2 or SND chunk from a DDB."""
+    if offset < 0 or offset + 8 > len(ddb_bytes):
+        raise PackError('%s pointer 0x%x is outside the .ddb' % (tag.decode('ascii'), offset))
+    if ddb_bytes[offset:offset + 4] != tag:
+        raise PackError('%s pointer 0x%x does not point to a %s chunk' %
+                        (tag.decode('ascii'), offset, tag.decode('ascii')))
+    length = struct.unpack_from('<I', ddb_bytes, offset + 4)[0]
+    if length < 8 or offset + length > len(ddb_bytes):
+        raise PackError('invalid %s chunk length at 0x%x' % (tag.decode('ascii'), offset))
+    return ddb_bytes[offset:offset + length]
+
+
+def _validate_vqm_refs(ddi_bytes, ddb_bytes):
+    """Return the number of VQM records, validating all referenced DDB chunks."""
+    try:
+        _start, _end, records = _parse_vqm_chunk(ddi_bytes)
+    except PackError as ex:
+        if 'has no VQM' in str(ex):
+            return 0
+        raise
+    for rec in records:
+        for _pos, offset in rec['epr']:
+            _extract_ddb_chunk(ddb_bytes, offset, b'FRM2')
+        _extract_ddb_chunk(ddb_bytes, rec['snd_offset'], b'SND ')
+    return len(records)
+
+
+def _write_vqm_string(value):
+    raw = str(value).encode('latin-1')
+    return struct.pack('<I', len(raw)) + raw
+
+
+def _make_vqm_stream(records):
+    """Serialize the VQM/VQMu/VQMp layout used by the open ddb-tools sta2vqm path."""
+    out = bytearray(b'\xff' * 8 + b'VQM ')
+    out += struct.pack('<4I', 0, 1, 0, 1)
+    out += b'\xff' * 8 + b'VQMu' + struct.pack('<5I', 0, 1, 0, len(records), len(records))
+    for rec in records:
+        epr = rec['epr']
+        out += b'\xff' * 8 + b'VQMp' + struct.pack('<3I', 0, 0, 1)
+        out += struct.pack('<dI', float(rec['duration']), 1)
+        # The reference VQM writer uses 224.0 in this opaque field, followed by the
+        # DBTool stationary's remaining metadata values.
+        out += struct.pack('<5f', 224.0, float(rec['pitch2']), float(rec['unknown2']),
+                           float(rec['dynamics']), float(rec['tempo']))
+        out += struct.pack('<I', 0) + b'\xff' * 4 + struct.pack('<I', len(epr))
+        for offset in epr:
+            out += struct.pack('<Q', int(offset))
+        out += struct.pack('<I', int(rec['fs'])) + b'\x01\x00'
+        out += struct.pack('<IQ', int(rec['snd_id']), int(rec['snd_offset']))
+        out += b'\xff' * 0x10
+        out += _write_vqm_string(rec['index'])
+        out += _write_vqm_string('GROWL')
+        out += _write_vqm_string('vqm')
+    return bytes(out)
+
+
+def add_vqm_from_grw_stationary(ddi_path, ddb_path, phoneme='Grw', log=print, vqm_indices=None):
+    """Create native VQM data from Henkan's imported Grw stationary WAV.
+
+    The DBTool has already analysed the WAV into an ordinary stationary entry. This
+    routine copies only its first 100 FRM2 analysis frames and its one SND audio chunk
+    into the packed DDB, then writes VQM metadata pointing at those compact payloads.
+    No donor bank or donor DDB is read.
+    """
+    with open(ddi_path, 'rb') as f:
+        ddi_bytes = f.read()
+    # A dictionary mention alone does not mean a growl sample was actually built.
+    if phoneme.encode('latin-1') not in ddi_bytes:
+        return 0
+    with open(ddb_path, 'rb') as f:
+        ddb_bytes = f.read()
+
+    try:
+        model = DDIModel(ddi_bytes)
+        model.read()
+    except (AssertionError, ValueError, UnicodeDecodeError, struct.error) as ex:
+        raise PackError('could not inspect the built DB for the %s growl stationary: %s' % (phoneme, ex)) from ex
+
+    sta_entries = [entry for entry in model.sta_data.values() if entry.get('phoneme') == phoneme]
+    if not sta_entries:
+        raise PackError('the converted DB contains the %s dictionary phoneme but no stationary sample; '
+                        'reconvert with a sustained growl WAV selected in Convert' % phoneme)
+
+    if vqm_indices is not None:
+        try:
+            vqm_indices = [int(index) for index in vqm_indices]
+        except (TypeError, ValueError) as ex:
+            raise PackError('the VQM sample index map contains a non-integer index') from ex
+        if any(index < 0 for index in vqm_indices) or len(vqm_indices) != len(set(vqm_indices)):
+            raise PackError('the VQM sample index map must contain unique non-negative indexes')
+
+    if vqm_indices is not None:
+        stationary_count = sum(len(entry.get('stap', {})) for entry in sta_entries)
+        if stationary_count != len(vqm_indices):
+            raise PackError('VQM index map has %d source sample(s), but the DB contains %d Grw stationary '
+                            'record(s); refusing to shift pitch indexes. Rebuild the DB from the same VQM folder.' %
+                            (len(vqm_indices), stationary_count))
+
+    appended = bytearray()
+    records = []
+    skipped = []
+    for sta_entry in sta_entries:
+        # DDIModel sorts these keys; use a numeric-aware order so source file indexes
+        # 2 and 10 do not become 10 and 2 after DBTool serialization.
+        sta_items = sorted(sta_entry.get('stap', {}).items(),
+                           key=lambda item: (0, int(item[0])) if str(item[0]).isdigit()
+                           else (1, str(item[0])))
+        for sta_idx, sta_item in sta_items:
+            epr_info = sta_item.get('epr', [])
+            if len(epr_info) < 100:
+                skipped.append('%s (%d EpR frames)' % (sta_idx, len(epr_info)))
+                continue
+            new_epr = []
+            for info in epr_info[:100]:
+                try:
+                    _ddi_pos, offset_text = info.split('=', 1)
+                    source_offset = int(offset_text, 16)
+                except (ValueError, TypeError) as ex:
+                    raise PackError('invalid %s EpR pointer in stationary %s: %r' %
+                                    (phoneme, sta_idx, info)) from ex
+                chunk = _extract_ddb_chunk(ddb_bytes, source_offset, b'FRM2')
+                new_epr.append(len(ddb_bytes) + len(appended))
+                appended.extend(chunk)
+
+            try:
+                _snd_pos, snd_name = sta_item['snd'].split('=', 1)
+                snd_offset_text, snd_id_text = snd_name.split('_', 1)
+                source_snd_offset = int(snd_offset_text, 16)
+                snd_id = int(snd_id_text, 16)
+            except (KeyError, ValueError, TypeError) as ex:
+                raise PackError('invalid %s SND pointer in stationary %s' % (phoneme, sta_idx)) from ex
+            real_snd_offset = _reverse_search(ddb_bytes, b'SND ', source_snd_offset)
+            if real_snd_offset < 0:
+                raise PackError('%s stationary %s SND pointer does not resolve to an SND chunk' %
+                                (phoneme, sta_idx))
+            snd_chunk = _extract_ddb_chunk(ddb_bytes, real_snd_offset, b'SND ')
+            new_snd_offset = len(ddb_bytes) + len(appended)
+            appended.extend(snd_chunk)
+            records.append({
+                'index': str(vqm_indices[len(records)] if vqm_indices is not None else len(records)),
+                'duration': sta_item['duration'],
+                'pitch2': sta_item['pitch2'],
+                'unknown2': sta_item['unknown2'],
+                'dynamics': sta_item['dynamics'],
+                'tempo': sta_item['tempo'],
+                'fs': sta_item['fs'],
+                'snd_id': snd_id,
+                'snd_offset': new_snd_offset,
+                'epr': new_epr,
+            })
+
+    if not records:
+        detail = ', '.join(skipped) or 'no usable stationary entries'
+        raise PackError('the imported VQM WAV(s) did not produce the required 100 DBTool EpR analysis frames (%s). '
+                        'Use sustained growled vowel samples of about 1–2 seconds, then rebuild the DB.' % detail)
+    if vqm_indices is not None and len(records) != len(vqm_indices):
+        raise PackError('VQM index map has %d source sample(s), but DBTool produced %d usable Grw stationary '
+                        'record(s); refusing to shift pitch indexes. Rebuild the DB from the same VQM folder.' %
+                        (len(vqm_indices), len(records)))
+    if skipped:
+        log('skipped %d short %s stationary record(s): %s' % (len(skipped), phoneme, ', '.join(skipped)))
+
+    vqm_chunk = _make_vqm_stream(records)
+    footer_pos = ddi_bytes.find(_VQM_FOOTER)
+    if footer_pos < 0:
+        raise PackError('the built DDI has no recognised voice footer; cannot insert native VQM data')
+    dbv_start = ddi_bytes.find(b'\x00' * 8 + b'DBV ')
+    dbv_count_pos = dbv_start + 0x18 if dbv_start >= 0 else -1
+    if dbv_count_pos < 0 or dbv_count_pos + 4 > len(ddi_bytes):
+        raise PackError('the built DDI has no valid DBV count field; cannot add VQM data')
+    dbv_count = struct.unpack_from('<I', ddi_bytes, dbv_count_pos)[0]
+    if dbv_count == 0xFFFFFFFF:
+        raise PackError('the built DDI DBV count would overflow')
+    ddi_bytes = (ddi_bytes[:dbv_count_pos] + struct.pack('<I', dbv_count + 1) +
+                 ddi_bytes[dbv_count_pos + 4:])
+    footer_pos = ddi_bytes.find(_VQM_FOOTER)
+    ddi_new = ddi_bytes[:footer_pos] + vqm_chunk + ddi_bytes[footer_pos:]
+    ddb_new = ddb_bytes + bytes(appended)
+
+    try:
+        actual = _validate_vqm_refs(ddi_new, ddb_new)
+    except PackError as ex:
+        raise PackError('generated VQM failed its post-write validation: %s' % ex) from ex
+    if actual != len(records):
+        raise PackError('generated VQM verification mismatch: expected %d records, found %d' %
+                        (len(records), actual))
+
+    def atomic_write(path, data):
+        import tempfile
+        directory = os.path.dirname(os.path.abspath(path))
+        fd, temp_path = tempfile.mkstemp(prefix='.henkan-vqm-', suffix='.tmp', dir=directory)
+        try:
+            with os.fdopen(fd, 'wb') as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, path)
+        except Exception:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            raise
+
+    atomic_write(ddb_path, ddb_new)
+    atomic_write(ddi_path, ddi_new)
+    log('created %d native VQM Growl record(s) from %s stationary (%d FRM2 frames per record; %d bytes added)' %
+        (actual, phoneme, 100, len(appended)))
+    return actual
+
+
+def strip_vqm_from_ddi(ddi_path, log=print):
+    """Remove an unusable or version-incompatible VQM node from a DDI."""
+    with open(ddi_path, 'rb') as f:
+        ddi_bytes = f.read()
+    try:
+        start, end, records = _parse_vqm_chunk(ddi_bytes)
+    except PackError as ex:
+        if 'has no VQM' in str(ex):
+            return 0
+        raise
+    dbv_start = ddi_bytes.find(b'\x00' * 8 + b'DBV ')
+    count_pos = dbv_start + 0x18 if dbv_start >= 0 else -1
+    if count_pos < 0 or count_pos + 4 > len(ddi_bytes):
+        raise PackError('cannot remove VQM: the DDI DBV count field is missing')
+    count = struct.unpack_from('<I', ddi_bytes, count_pos)[0]
+    if count < 1:
+        raise PackError('cannot remove VQM: the DDI DBV count is already zero')
+    ddi_bytes = ddi_bytes[:start] + ddi_bytes[end:]
+    ddi_bytes = ddi_bytes[:count_pos] + struct.pack('<I', count - 1) + ddi_bytes[count_pos + 4:]
+    with open(ddi_path, 'wb') as f:
+        f.write(ddi_bytes)
+    log('removed %d VQM entry/entries from a package that cannot use them' % len(records))
+    return len(records)
+
 
 class PackError(RuntimeError):
     pass
@@ -638,10 +948,15 @@ def decode_vvd(data):
     return ''.join(_VVD_DEC.get(c, c) for c in data)
 
 
-def make_vvd(compid, name, fmt='4.0.0.0', growl=True):
-    """Encoded .vvd content for a voicebank. V2/V3 databases drop the Growl line."""
+def make_vvd(compid, name, fmt='4.0.0.0', growl=False, voice_params=None):
+    """Encoded .vvd metadata. Singer Editor offsets are optional; Growl needs verified VQM data."""
+    from .voiceparams import normalize_voice_profile, VOICE_PROFILE_VVD_KEYS
+    profile = normalize_voice_profile(voice_params)
     text = VVD_TEMPLATE.format(fmt=fmt, compid=compid, name=name,
                                growl='"Growl" = "1"\n' if growl else '')
+    for key, vvd_key in VOICE_PROFILE_VVD_KEYS.items():
+        text = text.replace('\"%s\" = \"0\"' % vvd_key,
+                            '\"%s\" = \"%d\"' % (vvd_key, profile[key]))
     return encode_vvd(text).replace('\n', '\r\n')
 
 
@@ -832,10 +1147,50 @@ def install_script(compid, name, dest, files_base, kind, db_version='4', uninsta
                               reg_lines=_reg_add_lines(branches, compid, values))
 
 
-def make_package(db_path, out_dir=None, name=None, compid=None, db_version='4', log=print):
-    """Pack the DB and write the voicebank package: <out>/<compid>/<name>.{ddb,ddi,vvd}.
+def _load_vqm_sample_indexes(db_path):
+    """Read the source vqm_N.wav indexes carried through DBTool build, if present."""
+    path = os.path.abspath(db_path) + '.henkan-vqm.json'
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError) as ex:
+        raise PackError('could not read the VQM sample index map %s: %s' % (path, ex)) from ex
+    if not isinstance(data, dict) or data.get('format_version') != 1 or not isinstance(data.get('samples'), list):
+        raise PackError('the VQM sample index map has an unsupported format: %s' % path)
+    indexes = []
+    for sample in data['samples']:
+        if not isinstance(sample, dict) or 'index' not in sample:
+            raise PackError('the VQM sample index map contains an invalid sample entry')
+        try:
+            indexes.append(int(sample['index']))
+        except (TypeError, ValueError) as ex:
+            raise PackError('the VQM sample index map contains a non-integer index') from ex
+    if not indexes or any(index < 0 for index in indexes) or len(indexes) != len(set(indexes)):
+        raise PackError('the VQM sample index map must contain unique non-negative indexes')
+    return indexes
+
+
+def make_package(db_path, out_dir=None, name=None, compid=None, db_version='4', log=print,
+                 voice_params=None):
+    """Pack a built DB, converting an imported Grw stationary WAV into native V4 VQM data.
+
+    The WAV is selected in Convert and is processed by the DBTool as the special stationary
+    phoneme ``Grw``. The package step copies only that stationary's frame-analysis and audio
+    chunks into VQM; it never imports a donor bank or donor DDB.
 
     Returns the package folder. Also writes install.bat/uninstall.bat next to the files."""
+    from .voiceparams import normalize_voice_profile, VOICE_PROFILE_DEFAULTS
+    try:
+        voice_params = normalize_voice_profile(voice_params)
+    except ValueError as ex:
+        raise PackError(str(ex)) from ex
+    db_version = str(db_version)
+    if db_version not in ('2', '3', '4'):
+        raise PackError('unsupported database version: %s' % db_version)
+    if db_version != '4' and any(voice_params.values()):
+        raise PackError('BRE/BRI/CLE/GEN Singer Editor offsets are only supported for VOCALOID4 packages')
     db_path = os.path.normpath(os.path.abspath(db_path))
     name = name or os.path.basename(db_path.rstrip('\\/')) or 'Singer'
     name = re.sub(r'[^A-Za-z0-9 _-]+', '_', name).strip() or 'Singer'
@@ -846,15 +1201,44 @@ def make_package(db_path, out_dir=None, name=None, compid=None, db_version='4', 
     if os.path.exists(package):
         raise PackError('package folder already exists: %s' % package)
     os.makedirs(package)
-    ddb_src, ddi_src = pack_db(db_path, package, log=log)
-    base = os.path.splitext(os.path.basename(ddb_src))[0]
-    for ext in ('.ddb', '.ddi'):
-        os.rename(os.path.join(package, base + ext), os.path.join(package, name + ext))
-    with open(os.path.join(package, name + '.vvd'), 'w', encoding='latin-1', newline='') as f:
-        f.write(make_vvd(compid, name, fmt='%s.0.0.0' % db_version, growl=db_version == '4'))
-    log('voicebank package: %s' % package)
-    return package
-
+    try:
+        vqm_indices = _load_vqm_sample_indexes(db_path)
+        ddb_src, ddi_src = pack_db(db_path, package, log=log)
+        # pack_db handles articulation/stationary payloads, not source-tree VQM offsets.
+        # Remove any inherited VQM node, then rebuild it only from Henkan's own Grw
+        # stationary WAV after DBTool has analysed that recording.
+        stripped = strip_vqm_from_ddi(ddi_src, log=log)
+        if stripped:
+            log('discarded inherited VQM metadata; only the converted Grw sample is used')
+        with open(ddi_src, 'rb') as f:
+            packed_ddi = f.read()
+        has_grw = b'Grw' in packed_ddi
+        if has_grw and db_version != '4':
+            raise PackError('the converted DB contains a Grw growl sample, but native VQM is VOCALOID4-only; '
+                            'pack this database with --db-version 4')
+        vqm_count = add_vqm_from_grw_stationary(ddi_src, ddb_src, phoneme='Grw', log=log, vqm_indices=vqm_indices) if has_grw else 0
+        if vqm_count:
+            with open(ddi_src, 'rb') as f:
+                final_ddi = f.read()
+            with open(ddb_src, 'rb') as f:
+                final_ddb = f.read()
+            vqm_count = _validate_vqm_refs(final_ddi, final_ddb)
+        else:
+            log('Growl disabled: no imported Grw WAV stationary was found in the converted DB')
+        base = os.path.splitext(os.path.basename(ddb_src))[0]
+        for ext in ('.ddb', '.ddi'):
+            os.rename(os.path.join(package, base + ext), os.path.join(package, name + ext))
+        with open(os.path.join(package, name + '.vvd'), 'w', encoding='latin-1', newline='') as f:
+            f.write(make_vvd(compid, name, fmt='%s.0.0.0' % db_version,
+                             growl=(db_version == '4' and vqm_count > 0),
+                             voice_params=voice_params))
+        if any(voice_params[k] for k in VOICE_PROFILE_DEFAULTS):
+            log('Singer Editor offsets: %s' % ', '.join('%s=%d' % (k, v) for k, v in voice_params.items()))
+        log('voicebank package: %s' % package)
+        return package
+    except Exception:
+        shutil.rmtree(package, ignore_errors=True)
+        raise
 
 def _package_files(package):
     """(compid, base, {ext: path}) for a package folder."""
@@ -926,10 +1310,16 @@ def read_dev_slots(ini_path):
     return slots
 
 
-def write_dev_slot(editor_root, db_path, name=None, log=print):
+def write_dev_slot(editor_root, db_path, name=None, log=print, voice_params=None):
     """Register a loose built DB as a new [VVoice N] slot in the dev editor's DB_Dev.ini.
 
-    The ini lives in Program Files, so this writes a snippet + an elevated .bat that appends it."""
+    The ini lives in Program Files, so this writes a snippet + an elevated .bat that appends it.
+    ``voice_params`` are signed BRE/BRI/CLE/GEN Singer Editor offsets (-127..127)."""
+    from .voiceparams import normalize_voice_profile, VOICE_PROFILE_INI_KEYS
+    try:
+        voice_params = normalize_voice_profile(voice_params)
+    except ValueError as ex:
+        raise PackError(str(ex)) from ex
     ini = dev_ini_path(editor_root)
     if not os.path.exists(ini):
         raise PackError('no DB_Dev.ini in %s: not a developer editor?' % editor_root)
@@ -951,10 +1341,12 @@ def write_dev_slot(editor_root, db_path, name=None, log=print):
         pcs.add(int(m.group(1)))
     pc = max(pcs) + 1 if pcs else 0
     folder, tree = os.path.dirname(db_path), os.path.basename(db_path)
+    profile_lines = ''.join('%s = %d\r\n' % (ini_key, voice_params[key])
+                           for key, ini_key in VOICE_PROFILE_INI_KEYS.items())
     snippet = ('\r\n[VVoice %d]\r\nBankSelect = %d\r\nProgramChange = %d\r\nComponentID = "%016d"\r\n'
                'DBPath = "%s"\r\nDBName = "%s.tree"\r\nVVoiceName = "%s"\r\n'
-               'Breathiness = 0\r\nBrightness = 0\r\nClearness = 0\r\nGenderFactor = 0\r\nOpening = 0\r\n'
-               % (n, bank, pc, n + 1, folder, tree, name))
+               '%sOpening = 0\r\n'
+               % (n, bank, pc, n + 1, folder, tree, name, profile_lines))
     work = os.path.join(os.path.dirname(db_path), 'devslot_%d' % n)
     os.makedirs(work, exist_ok=True)
     slot_file = os.path.join(work, 'slot.txt')

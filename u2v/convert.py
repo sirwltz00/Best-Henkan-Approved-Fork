@@ -1,5 +1,6 @@
 """UTAU (VCV / CVVC / CV, Japanese or English Arpasing) -> VOCALOID3 DBTool segmentation folder."""
 import csv
+import json
 import os
 import re
 from collections import OrderedDict, defaultdict
@@ -11,6 +12,45 @@ from . import audio, dbtool_io, oto, phonemes as P, select as Sel
 
 TARGET_SR = 44100
 MIN_SEG = 0.012
+_VQM_WAV_NAME = re.compile(r'^vqm_(\d+)\.wav$', re.IGNORECASE)
+
+
+def discover_vqm_wavs(source):
+    """Return numbered VQM WAVs from one file, a vqm/ folder, or a commercial bank root.
+
+    Commercial VOCALOID banks commonly expose art/, sta/ and vqm/ beside one another;
+    only the numbered WAVs in vqm/ are consumed here. A legacy arbitrary WAV file is
+    still accepted and is treated as VQM index 0.
+    """
+    source = os.path.abspath(os.fspath(source))
+    if os.path.isfile(source):
+        if os.path.splitext(source)[1].lower() != '.wav':
+            raise ValueError('VQM sample must be a .wav file: %s' % source)
+        match = _VQM_WAV_NAME.match(os.path.basename(source))
+        return [(int(match.group(1)) if match else 0, source)]
+    if not os.path.isdir(source):
+        raise ValueError('VQM source does not exist: %s' % source)
+
+    folder = source
+    child_vqm = os.path.join(source, 'vqm')
+    if os.path.basename(os.path.normpath(source)).lower() != 'vqm' and os.path.isdir(child_vqm):
+        folder = child_vqm
+
+    found = []
+    for entry in os.scandir(folder):
+        if not entry.is_file():
+            continue
+        match = _VQM_WAV_NAME.match(entry.name)
+        if match:
+            found.append((int(match.group(1)), entry.path))
+    if not found:
+        raise ValueError('No numbered VQM WAVs found. Select a commercial bank root containing vqm/ '
+                         'or the vqm/ folder itself; expected names such as vqm_0.wav.')
+    found.sort(key=lambda item: (item[0], os.path.basename(item[1]).casefold()))
+    indexes = [index for index, _path in found]
+    if len(indexes) != len(set(indexes)):
+        raise ValueError('VQM folder contains duplicate vqm_<number>.wav indexes.')
+    return found
 
 
 @dataclass
@@ -38,8 +78,30 @@ class Converter:
                  merge=False, fill=True, log=print, evec=True, splice=True, extend_dict=True,
                  normalize=True, colors='main', brighten=None, avoid=(), extras=True,
                  evec_map=None, evec_phonemes=None, custom_extras=None, evec_mode='full', v_mode='auto',
-                  triphones=False, group_assignments=None):
+                  triphones=False, group_assignments=None, growl_wav=None):
         self.bank, self.out, self.keep, self.derive, self.log = bank, out, keep, derive, log
+        self.growl_wav = os.path.abspath(os.fspath(growl_wav)) if growl_wav else None
+        self.growl_samples = []
+        self.growl_audio = None  # backward-compatible alias for the first imported sample
+        if self.growl_wav:
+            for sample_index, sample_path in discover_vqm_wavs(self.growl_wav):
+                gx, gsr = audio.read_wav(sample_path)
+                gx = audio.resample(gx, gsr, TARGET_SR)
+                growl_seconds = len(gx) / float(TARGET_SR)
+                if growl_seconds < 0.75:
+                    raise ValueError('VQM sample vqm_%d.wav is only %.2f seconds. Each sample must be a '
+                                     'sustained growled vowel long enough for DBTool analysis (ideally 1–2 seconds).' %
+                                     (sample_index, growl_seconds))
+                if not len(gx) or float(np.max(np.abs(gx))) < 1e-4:
+                    raise ValueError('VQM sample vqm_%d.wav is silent or too quiet to analyse.' % sample_index)
+                if not np.all(np.isfinite(gx)):
+                    raise ValueError('VQM sample vqm_%d.wav contains non-finite audio values.' % sample_index)
+                sample = {'index': sample_index, 'path': os.path.abspath(sample_path),
+                          'audio': np.asarray(gx, dtype=np.float32)}
+                self.growl_samples.append(sample)
+                self.log('VQM Growl sample %d: %s (%.2f s, mono %d Hz)' %
+                         (sample_index, sample_path, growl_seconds, TARGET_SR))
+            self.growl_audio = self.growl_samples[0]['audio']
         self.fill, self.splice, self.normalize = fill, splice, normalize
         self.triphones = triphones                           # use matching VCV oto aliases as whole [V C V] units
         if self.triphones:
@@ -129,6 +191,10 @@ class Converter:
             if self.v_real:
                 d = dbtool_io.extend_dictionary(d, P.V_DICT)
             d = dbtool_io.extend_dictionary(d, {p: self.custom_dict[p] for p in self.extras_found})
+            if self.growl_samples:
+                # ddb-tools' native VQM workflow uses a DBTool stationary named exactly 'Grw'.
+                # Keep it unsuffixed even when EVEC colours are enabled.
+                d = dbtool_io.extend_dictionary(d, {'Grw': ('Vowels', True)})
         self.dict = d
 
     # -------------------------------------------------------------- voice colours and pitches
@@ -1832,6 +1898,49 @@ class Converter:
                                  os.path.relpath(c.entry.wav, self.bank), '%.1f' % audio.mean_f0(ft, sb, se),
                                  '', ', '.join(how), ''])
 
+        if self.growl_samples:
+            # Each numbered source WAV becomes its own Grw stationary. The ordered metadata
+            # sidecar carries the original vqm_N index through DBTool, so Pack can preserve it.
+            main_color = next((color for color, suffix in self.color_suffix.items() if not suffix), None)
+            growl_group = next((group for group in groups
+                                if self.group_color.get(group) == main_color), groups[0])
+            index_map = []
+            for sample in self.growl_samples:
+                nfile += 1
+                nstat += 1
+                name = '%s_%05d' % (gid[growl_group], nfile)
+                base = os.path.join(self.out, name)
+                body = sample['audio']
+                pad = int(0.2 * TARGET_SR)
+                fade = int(0.01 * TARGET_SR)
+                edge_silence = audio.cut(body, -pad - 10, -10)
+                y = np.concatenate([edge_silence, body, edge_silence])
+                y[pad:pad + fade] *= np.linspace(0, 1, fade)
+                y[-pad - fade:-pad] *= np.linspace(1, 0, fade)
+                audio.write_wav(base + '.wav', y, TARGET_SR)
+                p0, p1, duration = pad / TARGET_SR, (pad + len(body)) / TARGET_SR, len(y) / TARGET_SR
+                edge = fade / TARGET_SR + min(0.05, 0.15 * (p1 - p0))
+                p0, p1 = p0 + edge, p1 - edge
+                inset = min(0.02, 0.1 * (p1 - p0))
+                dbtool_io.write_seg(base + '.seg',
+                                    [('Sil', 0.0, p0), ('Grw', p0, p1), ('Sil', p1, duration)],
+                                    stationaries=True)
+                dbtool_io.write_trans(base + '.trans', ['Sil', 'Grw', 'Sil'], [(['Grw'], 1)])
+                dbtool_io.write_as(base + '.as0',
+                                   dbtool_io.ArtSeg(['Grw'], 0, len(y), [p0 + inset, p1 - inset], [True]))
+                source_rel = os.path.relpath(sample['path'], self.bank)
+                manifest.append([name, 'stationary', 'Grw', growl_group,
+                                 'Imported VQM sample %d' % sample['index'], source_rel, '', '',
+                                 'vqm_%d.wav; packed as native VQM' % sample['index'], ''])
+                index_map.append({'index': sample['index'], 'source_file': os.path.basename(sample['path']),
+                                  'output_file': name})
+            map_path = os.path.join(self.out, 'vqm_samples.json')
+            with open(map_path, 'w', encoding='utf-8') as f:
+                json.dump({'format_version': 1, 'samples': index_map}, f, indent=2)
+                f.write('\n')
+            self.log('added %d numbered VQM sample(s) as Grw stationaries; Pack preserves their vqm_N indexes' %
+                     len(index_map))
+
         with open(os.path.join(self.out, 'manifest.csv'), 'w', encoding='utf-8-sig', newline='') as f:
             w = csv.writer(f)
             w.writerow(['file', 'kind', 'unit', 'group', 'utau_alias', 'utau_wav', 'f0_hz',
@@ -1918,6 +2027,9 @@ class Converter:
                  'articulation units: %d, stationaries: %d' % (n_art - n_tri, n_stat)]
         if n_tri:
             lines.append('triphones: %d (matching VCV oto aliases kept whole as [V C V], next to their diphones)' % n_tri)
+        if self.growl_samples:
+            lines.append('V4 Growl source: %s (%d numbered WAV sample(s) exported as Grw stationaries; Pack converts them to VQM)' %
+                         (self.growl_wav, len(self.growl_samples)))
         if getattr(self, 'n_deaffricated', 0):
             lines.append('medial dz/dZ ([z]/[Z]) audio repairs: %d (stop-like closures bridged only in recorded V-dz/dZ-V exports)' % self.n_deaffricated)
         if getattr(self, 'n_closure', 0):

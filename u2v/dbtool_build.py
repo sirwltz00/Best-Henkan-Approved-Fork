@@ -661,6 +661,9 @@ def build(exe, seg_folder, db_path, name=None, dictionary=None, language='Japane
     if any(os.path.exists(path) for path in (final, final + '.dat', final + '.tree')):
         raise DBToolError('%s already exists (or contains a partial DB); pick a new DB name or remove the old files'
                           % final)
+    stale_vqm_map = final + '.henkan-vqm.json'
+    if os.path.isfile(stale_vqm_map):
+        os.remove(stale_vqm_map)
 
     try:
         phonetic_dict = dbtool_io.load_dictionary(dictionary)
@@ -713,6 +716,13 @@ def build(exe, seg_folder, db_path, name=None, dictionary=None, language='Japane
             log('warning: singer.inf was not found at %s; inspect the DBTool output before packing' % inf)
         else:
             log('database artifacts verified: .dat, .tree, %d phoneme(s)' % len(built_dict.voiced))
+        # Carry the VQM filename-index map alongside the built DB. The pack stage
+        # needs it because DBTool's internal stationary IDs are not the source vqm_N IDs.
+        vqm_map = os.path.join(seg_folder, 'vqm_samples.json')
+        if os.path.isfile(vqm_map):
+            shutil.copy2(vqm_map, final + '.henkan-vqm.json')
+            log('carried %s VQM sample index(es) into the built DB metadata' %
+                _count_vqm_map_samples(vqm_map))
         return failed
     except DBToolHandoff:
         raise
@@ -744,6 +754,20 @@ def _build_passes(exe, seg_folder, db_path, name, dictionary, language, log, hid
             "it's not a crash: let it finish.")
         boosted.update(new)
         _remove_db(db_path)
+
+
+def _count_vqm_map_samples(path):
+    """Count mapped source samples for a concise build log; malformed maps are reported at Pack."""
+    try:
+        import json
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or data.get('format_version') != 1:
+            return 0
+        samples = data.get('samples', [])
+        return len(samples) if isinstance(samples, list) else 0
+    except (OSError, ValueError, TypeError):
+        return 0
 
 
 def _copy_seg(seg_folder, work):
