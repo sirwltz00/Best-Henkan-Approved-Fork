@@ -59,6 +59,29 @@ class ReadBank(unittest.TestCase):
         self.assertTrue(all('F' not in e.color for e in es), [e.color for e in es])
         self.assertEqual(len({e.color for e in es}), 1)
 
+    def test_manual_group_assignments_are_scoped_to_full_source_group(self):
+        es = self.read({
+            'Natural': [('a.wav', '- か_0'), ('b.wav', 'a き_0'), ('c.wav', 'i く_0')],
+            'Power': [('a.wav', '- か_0'), ('b.wav', 'a き_0'), ('c.wav', 'i く_0')],
+        }, prefix_map='C4\t\t_0\n')
+        oto.apply_group_assignments(es, {
+            'Natural/_0': {'append': 'Natural', 'pitch': 'E3'},
+            'Power/_0': {'append': 'Power', 'pitch': 'G3'},
+        })
+        natural = [entry for entry in es if entry.group == 'Natural/_0']
+        power = [entry for entry in es if entry.group == 'Power/_0']
+        self.assertTrue(natural and power)
+        self.assertEqual({(entry.color, entry.pitch) for entry in natural}, {('Natural', 'E3')})
+        self.assertEqual({(entry.color, entry.pitch) for entry in power}, {('Power', 'G3')})
+
+    def test_manual_group_assignments_reject_invalid_pitch(self):
+        es = self.read({'Natural': [('a.wav', '- か_0'), ('b.wav', 'a き_0'), ('c.wav', 'i く_0')]},
+                       prefix_map='C4\t\t_0\n')
+        with self.assertRaises(ValueError):
+            oto.apply_group_assignments(es, {
+                'Natural/_0': {'append': 'Natural', 'pitch': 'not-a-note'},
+            })
+
     def test_nfd_file_names(self):
         with tempfile.TemporaryDirectory() as root:
             d = os.path.join(root, 'v')
@@ -85,7 +108,11 @@ class Phonemes(unittest.TestCase):
         self.assertEqual(P.ja_alias('か'), ['k', 'a'])
         self.assertEqual(P.ja_alias('- ん'), ['Sil', 'N\\'])
         self.assertEqual(P.ja_alias('u きゃ'), ['M', "k'", 'a'])
+        self.assertEqual(P.ja_alias('a ざ'), ['a', 'dz', 'a'])
         self.assertEqual(P.ja_alias('- ざ'), ['Sil', 'dz', 'a'])
+        self.assertEqual(P.ja_alias('n ざ'), ['n', 'dz', 'a'])
+        self.assertEqual(P.ja_syllable('za'), ['dz', 'a'])
+        self.assertEqual(P.ja_syllable('ji'), ['dZ', 'i'])
 
 
 if __name__ == '__main__':
