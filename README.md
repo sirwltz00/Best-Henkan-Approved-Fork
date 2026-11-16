@@ -37,7 +37,7 @@ click "Add Articulations" 790 times with your own human finger.
 
 ## 🚀 Quick start (the "I just want it to sing" path)
 
-1. Download the **Henkan-Windows** build from the repository's latest GitHub Actions run (or its Releases page, if the maintainer publishes one) and unzip it.
+1. Download the **Henkan-Windows** build from the repository's latest GitHub Releases page and unzip it.
 2. Keep **`Henkan.exe`** and **`HenkanWorker.exe`** together in the same folder, with the `_henkan_gui_runtime` and `_henkan_worker_runtime` folders beside them. Do not move or delete those runtime folders.
 3. Launch **`Henkan.exe`**. No Python installation is needed for the packaged Windows build.
 4. On the **Quick Start** page, choose your UTAU bank and check that the prerequisites are ready. Select the DBTool executable and its phonetic dictionary if Henkan does not detect them automatically, then press **▶ Make my voicebank**.
