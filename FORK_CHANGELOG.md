@@ -1,6 +1,6 @@
-# Best-Henkan-Approved-Fork — engineering changes
+# Henkan Fan Edition (Henkan FE) — engineering changes
 
-This fork preserves Henkan's deterministic, recording-based UTAU-to-VOCALOID
+Henkan FE preserves the deterministic, recording-based UTAU-to-VOCALOID
 conversion architecture. It does not add neural synthesis or replace source
 voicebank recordings with generated speech.
 
@@ -63,7 +63,7 @@ voicebank recordings with generated speech.
 ## VOCALOID4 VQM / numbered commercial-bank WAV import
 
 - The Convert-tab VQM importer accepts one WAV, a `vqm/` folder, or a commercial voicebank root containing sibling `art/`, `sta/` and `vqm/` folders.
-- It discovers `vqm_N.wav` files in numeric order and creates one internal, unsuffixed `Grw` stationary for each sample. `art/` and `sta/` are not imported; Henkan continues to build those from the UTAU source bank.
+- It discovers `vqm_N.wav` files in numeric order and creates one internal, unsuffixed `Grw` stationary for each sample. `art/` and `sta/` are not imported; Henkan FE continues to build those from the UTAU source bank.
 - A `vqm_samples.json` handoff is carried beside the built DB so original numeric `N` values survive DBTool's internal stationary IDs and are written to VQM records without renumbering.
 - During Pack, each DBTool-generated `Grw` stationary contributes its first 100 `FRM2` analysis chunks and its `SND ` audio chunk to the output DDB; the native VQM block uses rebased pointers.
 - No donor DDB is read and no growl is synthesized from an ordinary vowel. Samples must supply at least 100 DBTool EpR frames; short/unusable samples fail rather than silently shifting pitch indexes.
@@ -83,7 +83,7 @@ voicebank recordings with generated speech.
 ## CustomTkinter GUI redesign
 
 - Replaced the old tabbed ttk shell with a CustomTkinter dark workspace and persistent workflow sidebar.
-- Added the Henkan Quick Start page, reorganized Convert / Build singer DB / Pack & Install / V3 → V2 navigation, and retained the existing workflow controls and specialist dialogs.
+- Added the Henkan FE Quick Start page, reorganized Convert / Build singer DB / Pack & Install / V3 → V2 navigation, and retained the existing workflow controls and specialist dialogs.
 - Added a collapsible activity console with CLI output highlighting and a sticky process-status / progress footer.
 - Updated the `.bat` launcher and requirements so CustomTkinter is installed on first launch with the other Python dependencies.
 - Preserved the CLI-driven conversion/build/package commands and the existing settings file format.
@@ -92,19 +92,19 @@ voicebank recordings with generated speech.
 
 ## Windows application packaging
 
-- Added a PyInstaller GUI entry point and internal console worker so packaged Henkan can stream CLI output and stop background tasks without requiring Python on the target PC.
-- Added a Windows GitHub Actions workflow that runs tests, builds `Henkan.exe` and `HenkanWorker.exe`, and uploads a ready-to-extract Windows ZIP.
+- Added a PyInstaller GUI entry point and internal console worker so packaged Henkan FE can stream CLI output and stop background tasks without requiring Python on the target PC.
+- Added a Windows GitHub Actions workflow that runs tests, builds `HenkanFE.exe` and `HenkanFEWorker.exe`, and uploads a ready-to-extract Windows ZIP.
 - Frozen builds resolve the app install folder separately from PyInstaller's temporary extraction folder and look for DBTool beside the app or one directory above it.
-- Removed the legacy `Henkan GUI.bat` launcher from the packaged-source tree.
+- Kept `Henkan FE GUI.bat` as an optional source-checkout launcher; the packaged release uses the two frozen executables instead.
 - The build does not bundle or download DBTool, Yamaha components, dictionaries or voicebank materials.
 
 
 ## PC requirements and compatibility diagnostics
 
 - Added a dedicated **PC Requirements** page to the CustomTkinter sidebar and a shortcut from Quick Start.
-- The live report displays Windows version / architecture, processor and logical cores, installed and available RAM, free space on the system temporary-file drive, display resolution, and whether the required `HenkanWorker.exe` helper is present.
+- The live report displays Windows version / architecture, processor and logical cores, installed and available RAM, free space on the system temporary-file drive, display resolution, and whether the required `HenkanFEWorker.exe` helper is present.
 - Added clear minimum and recommended targets for Windows 10/11 x64, CPU, RAM, workspace storage and display resolution. Dedicated GPU is not required.
-- Separated Henkan hardware requirements from external prerequisites: DBTool, phonetic dictionary, VOCALOID editor, the conditional VC++ 2008 x86 runtime for DBTool error 14001, and UAC elevation for install/uninstall.
+- Separated Henkan FE hardware requirements from external prerequisites: DBTool, phonetic dictionary, VOCALOID editor, the conditional VC++ 2008 x86 runtime for DBTool error 14001, and UAC elevation for install/uninstall.
 - Added `SYSTEM_REQUIREMENTS.md`, updated the README and Windows build guide, and included the requirements document in the GitHub Actions release ZIP.
 - Added unit tests for minimum-spec PCs, unsupported OS/architecture, low RAM/disk, display constraints and a missing worker executable.
 - The report is advisory and does not block startup; the legacy DBTool / actual VOCALOID editor still need separate compatibility verification.
@@ -119,6 +119,6 @@ voicebank recordings with generated speech.
 ## Winlator-friendly Windows packaging layout
 
 - Switched the GUI and worker PyInstaller commands from `--onefile` to `--onedir`, avoiding the one-file bootloader's temporary `_MEI...` extraction step.
-- Kept `Henkan.exe` and `HenkanWorker.exe` at the root of the release ZIP so the GUI's existing same-folder worker lookup remains valid.
-- Stored each executable's bundled files in separate `_henkan_gui_runtime/` and `_henkan_worker_runtime/` folders to prevent file collisions. Updated CI smoke-test paths, local build instructions and user-facing extraction guidance.
+- Kept `HenkanFE.exe` and `HenkanFEWorker.exe` at the root of the release ZIP so the GUI's existing same-folder worker lookup remains valid.
+- Stored each executable's bundled files in separate `_henkan_fe_gui_runtime/` and `_henkan_fe_worker_runtime/` folders to prevent file collisions. Updated CI smoke-test paths, local build instructions and user-facing extraction guidance.
 - A Windows CI run is still needed to validate the resulting frozen executables and test behavior under Winlator.

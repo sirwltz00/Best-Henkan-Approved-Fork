@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Henkan 変換 GUI: pick an UTAU bank, convert it, build the singer DB with the DBTool, test it in the
+"""Henkan FE 変換 GUI: pick an UTAU bank, convert it, build the singer DB with the DBTool, test it in the
 VOCALOID4 Editor for Developer, pack and install it, or backport a V3/V4 bank to VOCALOID2. Every step
 runs the command line tools, so the log shows exactly what the CLI would print.
 
@@ -24,7 +24,7 @@ import customtkinter as ctk
 FROZEN = bool(getattr(sys, 'frozen', False))
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable)) if FROZEN else os.path.dirname(os.path.abspath(__file__))
 # PyInstaller keeps bundled modules and resources in _MEIPASS. Keep that runtime
-# directory separate from the folder containing Henkan.exe and HenkanWorker.exe.
+# directory separate from the folder containing HenkanFE.exe and HenkanFEWorker.exe.
 ROOT = getattr(sys, '_MEIPASS', APP_DIR) if FROZEN else APP_DIR
 BRAND_ASSET_DIR = os.path.join(ROOT, 'assets', 'brand')
 
@@ -40,8 +40,9 @@ def _default_devkit_dir():
 
 
 DEVKIT = _default_devkit_dir()
-CLI = os.path.join(ROOT, 'henkan.py')   # script identity; frozen builds dispatch through HenkanWorker.exe
+CLI = os.path.join(ROOT, 'henkan.py')   # script identity; frozen builds dispatch through HenkanFEWorker.exe
 _APPDATA = os.environ.get('APPDATA', os.path.expanduser('~'))
+# Keep the existing settings folder so upgrades retain preferences from earlier Henkan builds.
 SETTINGS = os.path.join(_APPDATA, 'Henkan', 'gui.json')
 OLD_SETTINGS = os.path.join(_APPDATA, 'utau2vocaloid', 'gui.json')     # read once if SETTINGS isn't there yet
 sys.path.insert(0, ROOT)
@@ -67,7 +68,7 @@ ACCENT = '#d6336c'
 HINT, INFO = '#9aa4b2', '#d4dbe5'
 
 # CustomTkinter theme. Keep the familiar Henkan pink as the single accent;
-# the application remains named simply "Henkan" and is not presented as a product.
+# Henkan FE is the independently maintained Fan Edition.
 APP_BG = '#11151d'
 PANEL_BG = '#191f2a'
 CARD_BG = '#202938'
@@ -731,8 +732,8 @@ class Runner:
                                          errors='replace', bufsize=1, creationflags=flags)
         except OSError as ex:
             messagebox.showerror('Could not start task',
-                                 'Henkan could not start its command worker.\n\n%s\n\n'
-                                 'Make sure HenkanWorker.exe is next to Henkan.exe.' % ex)
+                                 'Henkan FE could not start its command worker.\n\n%s\n\n'
+                                 'Make sure HenkanFEWorker.exe is next to HenkanFE.exe.' % ex)
             return
         self.done, self.title = done, title
         self.app.set_busy(title)
@@ -780,7 +781,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         from u2v import __version__
-        self.title('Henkan — UTAU → VOCALOID ' + __version__)
+        self.title('Henkan FE — UTAU → VOCALOID ' + __version__)
         self.geometry('960x900')
         self.minsize(820, 640)
         self._set_window_icon()
@@ -798,7 +799,7 @@ class App(ctk.CTk):
             self.after(200, lambda: (self.scan(), self._easy_check()))
 
     def _set_window_icon(self):
-        """Apply the bundled Henkan icon to the native window and taskbar."""
+        """Apply the bundled Henkan FE icon to the native window and taskbar."""
         png_path = os.path.join(BRAND_ASSET_DIR, 'henkan-icon-128.png')
         ico_path = os.path.join(BRAND_ASSET_DIR, 'henkan-icon.ico')
         if os.path.isfile(png_path):
@@ -1082,7 +1083,7 @@ class App(ctk.CTk):
 
         ctk.CTkLabel(body, text='PC requirements & compatibility', font=(UI_FONT_BOLD, 22),
                      text_color=TEXT).grid(row=0, column=0, columnspan=2, sticky='w', padx=18, pady=(18, 4))
-        ctk.CTkLabel(body, text='Henkan is a Windows desktop application. This check reads your PC specs and '
+        ctk.CTkLabel(body, text='Henkan FE is a Windows desktop application. This check reads your PC specs and '
                      'points out common reasons a task may fail. It does not change your system.',
                      text_color=TEXT_MUTED, wraplength=760, justify='left').grid(
             row=1, column=0, columnspan=2, sticky='w', padx=18, pady=(0, 12))
@@ -1115,7 +1116,7 @@ class App(ctk.CTk):
             'MEMORY\nMinimum: 4 GB RAM\nRecommended: 8 GB; 16 GB for large voicebanks\n\n'
             'STORAGE\nMinimum: 2 GB free working space\nRecommended: 10 GB+ free on an SSD\n\n'
             'DISPLAY\nMinimum: 820 × 640 to fit the app window\nRecommended: 1280 × 800 or higher\n\n'
-            'GRAPHICS\nNo dedicated GPU required; Henkan analysis is CPU-based.'
+            'GRAPHICS\nNo dedicated GPU required; Henkan FE analysis is CPU-based.'
         )
         ctk.CTkLabel(req_card, text=requirement_text, text_color=TEXT, font=(UI_FONT, 11),
                      justify='left', anchor='w').pack(fill='x', padx=14, pady=(0, 14))
@@ -1142,9 +1143,9 @@ class App(ctk.CTk):
             self.system_external[key] = lb
 
         note = ('These are practical project targets, not official Yamaha hardware specifications or a guarantee '
-                'that every legacy DBTool/VOCALOID installation will work. The packaged Henkan build is 64-bit. '
+                'that every legacy DBTool/VOCALOID installation will work. The packaged Henkan FE build is 64-bit. '
                 'The DBTool is a separate legacy Windows program and is not included. Its own runtime, dictionary, '
-                'permissions and compatibility can fail even when the PC meets Henkan’s requirements.')
+                'permissions and compatibility can fail even when the PC meets Henkan FE’s requirements.')
         ctk.CTkLabel(body, text=note, text_color=TEXT_MUTED, font=(UI_FONT, 10),
                      wraplength=780, justify='left').grid(row=6, column=0, columnspan=2,
                                                           sticky='w', padx=18, pady=(0, 18))
@@ -1242,7 +1243,7 @@ class App(ctk.CTk):
         ready &= self._easy_set('dbtool', os.path.isfile(exe),
                                 'VocaloidDBTool3.exe found' if os.path.isfile(exe) else
                                 'VocaloidDBTool3.exe not found. It comes with the VOCALOID3 devkit '
-                                '(easiest: put the Henkan folder inside the devkit folder).',
+                                '(easiest: put the Henkan FE folder inside the devkit folder).',
                                 self._easy_find_dbtool)
         d = self.v['dict'].get()
         if d and os.path.isfile(d):
@@ -1282,7 +1283,7 @@ class App(ctk.CTk):
     @staticmethod
     def _missing_packages():
         if FROZEN:
-            # Dependencies are bundled in Henkan.exe / HenkanWorker.exe; pip is not part of the app.
+            # Dependencies are bundled in HenkanFE.exe / HenkanFEWorker.exe; pip is not part of the app.
             return []
         import importlib.util
         need = ['numpy', 'customtkinter'] + (['pywinauto', 'win32gui'] if sys.platform == 'win32' else [])
@@ -1291,7 +1292,7 @@ class App(ctk.CTk):
     def _easy_install_packages(self):
         self.runner.start([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(ROOT, 'requirements.txt')],
                           'Installing packages', done=lambda code: messagebox.showinfo(
-                              'Packages', 'Installed. Close Henkan and open it again to use them.')
+                              'Packages', 'Installed. Close Henkan FE and open it again to use them.')
                           if code == 0 else None)
 
     def _easy_find_dbtool(self):
@@ -1371,7 +1372,7 @@ class App(ctk.CTk):
         self._easy_check()
         self.easy_done.set('Stopped at: %s.' % dict(self.EASY_STEPS)[key].split(' (')[0])
         what, fix = explain.explain(''.join(self._step_log))
-        messagebox.showwarning('Henkan: something went wrong', '%s\n\n%s' % (what, fix))
+        messagebox.showwarning('Henkan FE: something went wrong', '%s\n\n%s' % (what, fix))
 
     def easy_do_install(self):
         self._fill_pkg_dest(self._editor_pick() or {})
@@ -1405,9 +1406,9 @@ class App(ctk.CTk):
                          font=('Yu Gothic UI', 21, 'bold')).place(relx=0.5, rely=0.48, anchor='center')
         title_box = ctk.CTkFrame(h, fg_color='transparent')
         title_box.pack(side='left', pady=12)
-        ctk.CTkLabel(title_box, text='Henkan', text_color='#ffffff',
+        ctk.CTkLabel(title_box, text='Henkan FE', text_color='#ffffff',
                      font=(UI_FONT_BOLD, 17)).pack(anchor='w')
-        ctk.CTkLabel(title_box, text='UTAU → VOCALOID  ·  recording-based conversion',
+        ctk.CTkLabel(title_box, text='FAN EDITION  ·  UTAU → VOCALOID',
                      text_color=TEXT_MUTED, font=(UI_FONT, 9)).pack(anchor='w', pady=(1, 0))
         ctk.CTkLabel(h, text='v' + __version__, text_color=TEXT_MUTED,
                      font=(UI_FONT, 9)).pack(side='right', padx=20)
@@ -1519,7 +1520,7 @@ class App(ctk.CTk):
         ttk.Button(growl_browse, text='Clear', command=lambda: self.v['growl_wav'].set('')).pack(
             side='left', padx=(4, 0))
         self._hint(s, 4, 'Optional: select the commercial voicebank root (art/ sta/ vqm/), the vqm/ folder, '
-                         'or one WAV. Henkan imports every numbered vqm_N.wav in numeric order and preserves '
+                         'or one WAV. Henkan FE imports every numbered vqm_N.wav in numeric order and preserves '
                          'each N in the native V4 VQM records. art/ and sta/ are not copied: those are built '
                          'from the UTAU bank being converted.')
 
@@ -1998,13 +1999,13 @@ class App(ctk.CTk):
 
     def _py(self, script, *args):
         if FROZEN:
-            worker = os.path.join(APP_DIR, 'HenkanWorker.exe')
-            worker_runtime = os.path.join(APP_DIR, '_henkan_worker_runtime')
+            worker = os.path.join(APP_DIR, 'HenkanFEWorker.exe')
+            worker_runtime = os.path.join(APP_DIR, '_henkan_fe_worker_runtime')
             if not os.path.isfile(worker) or not os.path.isdir(worker_runtime):
                 messagebox.showerror(
-                    'Henkan worker files missing',
-                    'HenkanWorker.exe and its _henkan_worker_runtime folder must be beside Henkan.exe.\n\n'
-                    'Re-extract the complete Henkan-Windows package.')
+                    'Henkan FE worker files missing',
+                    'HenkanFEWorker.exe and its _henkan_fe_worker_runtime folder must be beside HenkanFE.exe.\n\n'
+                    'Re-extract the complete Henkan-FE-Windows package.')
                 return []
             mode = '--qa' if os.path.basename(script).lower() == 'qa.py' else '--cli'
             return [worker, mode] + [str(a) for a in args]
@@ -2086,7 +2087,7 @@ class App(ctk.CTk):
             if not mapped:
                 unknown.append((entry.raw_alias, entry.alias, entry.wav))
         lines = [
-            'HENKAN — OTO INSPECTOR',
+            'HENKAN FE — OTO INSPECTOR',
             'Bank: %s' % bank,
             'Detected language: %s' % lang,
             'Usable OTO entries: %d' % len(entries),
@@ -2107,7 +2108,7 @@ class App(ctk.CTk):
         if len(unknown) > 100 or len(diagnostics) > 100:
             lines += ['', 'Display truncated. Full conversion diagnostics are also written to the conversion log.']
         top = ctk.CTkToplevel(self)
-        top.title('OTO Inspector — Henkan')
+        top.title('OTO Inspector — Henkan FE')
         top.geometry('900x620')
         top.minsize(680, 420)
         top.transient(self)
@@ -2543,7 +2544,7 @@ class App(ctk.CTk):
             top, padding=(14, 12, 14, 8), justify='left', wraplength=820,
             text='Assign each detected OTO group to a voice append (colour) and its actual recording pitch. '
                  'The complete group name is used, so Natural/_0 and Power/_0 can have different pitches. '
-                 'Leave Pitch blank when it is unknown; Henkan will keep its existing fallback behaviour. '
+                 'Leave Pitch blank when it is unknown; Henkan FE will keep its existing fallback behaviour. '
                  'To include several append names in one singer DB, use Voice colours = evec on the Convert page.'
         ).grid(row=0, column=0, sticky='ew')
 
@@ -2621,7 +2622,7 @@ class App(ctk.CTk):
             saved_by_bank.pop(bank_key, None)
             self.v['pitch_assignments'].set(json.dumps(saved_by_bank, ensure_ascii=False))
             self._save()
-            self.log('Cleared manual pitch/append assignments; Henkan automatic detection is restored.\n')
+            self.log('Cleared manual pitch/append assignments; Henkan FE automatic detection is restored.\n')
             close()
 
         ttk.Button(buttons, text='Save assignments', style='Accent.TButton', command=save).pack(side='left')

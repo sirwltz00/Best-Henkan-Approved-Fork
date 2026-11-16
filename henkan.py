@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Henkan 変換: port an UTAU voicebank (VCV, CVVC or CV; Japanese, or English Arpasing) to a VOCALOID
+"""Henkan FE 変換: port an UTAU voicebank (VCV, CVVC or CV; Japanese, or English Arpasing) to a VOCALOID
 singer DB, pack it, install it.
 
     python henkan.py convert "<UTAU bank folder>" "<output folder>" [options]
@@ -34,7 +34,7 @@ def _default_devkit_dir():
 DEVKIT = _default_devkit_dir()
 NO_DICT = '''could not find the VOCALOID3 phonetic dictionary for %s.
 It comes with the DBTool devkit: "Japanese Dictionary\\Japanese_Dictionary.txt" (English:
-"English Dictionary\\english_phonetic_dictionary_20061220.txt"). Either put the Henkan folder inside
+"English Dictionary\\english_phonetic_dictionary_20061220.txt"). Either put the Henkan FE folder inside
 the devkit folder (next to VocaloidDBTool3.exe), or point at the file with --dict "...\\Japanese_Dictionary.txt".'''
 
 
@@ -47,7 +47,7 @@ def main():
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     from u2v import __version__
-    ap.add_argument('--version', action='version', version='Henkan ' + __version__)
+    ap.add_argument('--version', action='version', version='Henkan FE ' + __version__)
     sub = ap.add_subparsers(dest='cmd', required=True)
     c = sub.add_parser('convert', help='convert an UTAU bank')
     c.add_argument('bank', help='UTAU voicebank folder (searched recursively for oto.ini)')

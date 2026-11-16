@@ -1,4 +1,4 @@
-"""Windows GUI entry point for the Henkan PyInstaller application."""
+"""Windows GUI entry point for the Henkan FE PyInstaller application."""
 import os
 import sys
 import tempfile
@@ -8,8 +8,8 @@ import traceback
 def _self_test_log_path():
     """Return the CI-provided diagnostic path, or a stable temp-file fallback."""
     return os.environ.get(
-        "HENKAN_SELF_TEST_LOG",
-        os.path.join(tempfile.gettempdir(), "Henkan-self-test.log"),
+        "HENKAN_FE_SELF_TEST_LOG",
+        os.path.join(tempfile.gettempdir(), "Henkan-FE-self-test.log"),
     )
 
 
@@ -49,7 +49,7 @@ def _self_test():
             "SELF-TEST PASSED\n"
             "Frozen GUI imports: customtkinter, numpy, gui, u2v, "
             "v3v2.convert, v3v2.install\n"
-            "Bundled V3/V2 JSON resources and Henkan brand assets: present\n"
+            "Bundled V3/V2 JSON resources and Henkan FE brand assets: present\n"
             "PyInstaller runtime directory: " + root
         )
         return 0

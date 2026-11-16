@@ -1,4 +1,4 @@
-"""PC requirement guidance and read-only diagnostics for the Henkan Windows app.
+"""PC requirement guidance and read-only diagnostics for the Henkan FE Windows app.
 
 The thresholds here are practical project guidance, not hardware requirements supplied by
 Yamaha.  They intentionally produce warnings instead of preventing the application from opening.
@@ -79,7 +79,7 @@ def collect_system_info(app_dir: str | None = None, screen_size: tuple[int, int]
     """Collect local specs without installing packages, opening external apps or changing settings."""
     app_dir = os.path.abspath(app_dir or os.getcwd())
     ram_total, ram_available = _memory_bytes()
-    # Henkan's DBTool preparation uses the system temp directory; check that drive as the
+    # Henkan FE's DBTool preparation uses the system temp directory; check that drive as the
     # most useful common workspace signal. The chosen output drive still needs its own space.
     disk_path = tempfile.gettempdir()
     try:
@@ -95,9 +95,9 @@ def collect_system_info(app_dir: str | None = None, screen_size: tuple[int, int]
     machine = platform.machine() or 'Unknown'
     processor = os.environ.get('PROCESSOR_IDENTIFIER') or platform.processor() or machine
     bits = struct.calcsize('P') * 8
-    worker_name = 'HenkanWorker.exe' if frozen else 'henkan_worker.py'
+    worker_name = 'HenkanFEWorker.exe' if frozen else 'henkan_worker.py'
     worker_path = os.path.join(app_dir, worker_name)
-    worker_runtime_path = (os.path.join(app_dir, '_henkan_worker_runtime') if frozen else None)
+    worker_runtime_path = (os.path.join(app_dir, '_henkan_fe_worker_runtime') if frozen else None)
     worker_file_exists = os.path.isfile(worker_path)
     worker_runtime_exists = (os.path.isdir(worker_runtime_path) if worker_runtime_path else True)
 
@@ -151,7 +151,7 @@ def evaluate_system(info: dict[str, Any]) -> list[dict[str, str]]:
         'minimum': 'Modern 64-bit dual-core CPU', 'recommended': 'Modern 4-core CPU or better',
         'status': 'good' if isinstance(cores, int) and cores >= 4 else
                   ('info' if isinstance(cores, int) and cores >= 2 else 'warn'),
-        'explanation': ('More cores help when analysing larger banks. Henkan does not require a dedicated GPU.'),
+        'explanation': ('More cores help when analysing larger banks. Henkan FE does not require a dedicated GPU.'),
     })
 
     ram = info.get('ram_total_bytes')
@@ -194,14 +194,14 @@ def evaluate_system(info: dict[str, Any]) -> list[dict[str, str]]:
     })
 
     rows.append({
-        'key': 'worker', 'name': 'Henkan worker helper',
+        'key': 'worker', 'name': 'Henkan FE worker helper',
         'detected': ('Found: %s' % os.path.basename(info.get('worker_path', ''))
                      if info.get('worker_exists') else
                      'Missing or incomplete: %s' % os.path.basename(info.get('worker_path', ''))),
-        'minimum': 'Keep HenkanWorker.exe and _henkan_worker_runtime beside Henkan.exe',
-        'recommended': 'Extract the complete Henkan-Windows.zip',
+        'minimum': 'Keep HenkanFEWorker.exe and _henkan_fe_worker_runtime beside HenkanFE.exe',
+        'recommended': 'Extract the complete Henkan-FE-Windows.zip',
         'status': 'good' if info.get('worker_exists') else 'bad',
-        'explanation': ('Henkan uses the worker and its runtime folder to run conversion and build tasks. '
+        'explanation': ('Henkan FE uses the worker and its runtime folder to run conversion and build tasks. '
                         'Re-extract the complete ZIP if either is missing or was quarantined.'),
     })
     return rows
@@ -212,7 +212,7 @@ def overall_status(rows: list[dict[str, str]]) -> tuple[str, str]:
     bad = [row for row in rows if row.get('status') == 'bad']
     warnings = [row for row in rows if row.get('status') == 'warn']
     if bad:
-        return 'bad', 'One or more compatibility requirements are not met. Henkan may not run correctly.'
+        return 'bad', 'One or more compatibility requirements are not met. Henkan FE may not run correctly.'
     if warnings:
         return 'warn', 'This PC is below at least one minimum working target. Some tasks may be slow or fail.'
-    return 'good', 'This PC meets the listed Henkan requirements.'
+    return 'good', 'This PC meets the listed Henkan FE requirements.'

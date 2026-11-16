@@ -2,15 +2,15 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/brand/henkan-wordmark-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="assets/brand/henkan-wordmark.png">
-    <img src="assets/brand/henkan-wordmark.png" alt="Henkan — voicebank converter" width="720">
+    <img src="assets/brand/henkan-wordmark.png" alt="Henkan FE — Fan Edition voicebank converter" width="720">
   </picture>
-  <p><strong>Best-Henkan-Approved-Fork</strong> · Community improvement fork of Henkan</p>
+  <p><strong>Henkan Fan Edition (Henkan FE)</strong> · An independently maintained fan fork of the original Henkan project</p>
 </div>
 
-> This fork keeps the original deterministic, sample-based conversion approach and focuses on stronger analysis, safer unit selection and better joins.
+> Henkan FE is an independently maintained fan edition of the original Henkan project. It keeps the original deterministic, sample-based conversion approach while adding its own improvements to analysis, unit selection and joins. It is not an official release of the original project.
 
 
-[![Release](https://img.shields.io/github/v/release/sirwltz00/Best-Henkan-Approved-fork)](https://github.com/sirwltz00/Best-Henkan-Approved-Fork/releases/latest)
+[![Release](https://img.shields.io/github/v/release/sirwltz00/Henkan-FE)](https://github.com/sirwltz00/Henkan-FE/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078d4)
 ![Python 3.10+ source](https://img.shields.io/badge/source-Python%203.10%2B-3776ab)
@@ -24,7 +24,7 @@ can sing them. (It used to be called **utau2vocaloid**. Same tool, better name.)
 You have an UTAU bank. You have the VOCALOID3 developer kit. You thought "surely there's a button for this."
 There was not. Now there is. It's this.
 
-Henkan reads an UTAU bank (`oto.ini`, VCV / CVVC / CV, Japanese or English), figures out where
+Henkan FE reads an UTAU bank (`oto.ini`, VCV / CVVC / CV, Japanese or English), figures out where
 every phoneme starts and ends *by actually listening to the audio* (oto.ini is a suggestion, not the law),
 writes everything the VOCALOID3 DBTool wants, and then **drives the DBTool for you** so you don't have to
 click "Add Articulations" 790 times with your own human finger.
@@ -44,15 +44,15 @@ click "Add Articulations" 790 times with your own human finger.
 
 ## 🚀 Quick start (the "I just want it to sing" path)
 
-1. Download the **Henkan-Windows** build from the repository's latest GitHub Releases page and unzip it.
-2. Keep **`Henkan.exe`** and **`HenkanWorker.exe`** together in the same folder, with the `_henkan_gui_runtime` and `_henkan_worker_runtime` folders beside them. Do not move or delete those runtime folders.
-3. Launch **`Henkan.exe`**. No Python installation is needed for the packaged Windows build.
-4. On the **Quick Start** page, choose your UTAU bank and check that the prerequisites are ready. Select the DBTool executable and its phonetic dictionary if Henkan does not detect them automatically, then press **▶ Make my voicebank**.
+1. Download the **Henkan-FE-Windows** build from the repository's latest GitHub Releases page and unzip it.
+2. Keep **`HenkanFE.exe`** and **`HenkanFEWorker.exe`** together in the same folder, with the `_henkan_fe_gui_runtime` and `_henkan_fe_worker_runtime` folders beside them. Do not move or delete those runtime folders.
+3. Launch **`HenkanFE.exe`**. No Python installation is needed for the packaged Windows build.
+4. On the **Quick Start** page, choose your UTAU bank and check that the prerequisites are ready. Select the DBTool executable and its phonetic dictionary if Henkan FE does not detect them automatically, then press **▶ Make my voicebank**.
 5. **Pack & Install** → install the resulting bank in your VOCALOID editor.
 
-The DBTool is a separate Windows prerequisite. It is not bundled in the Henkan build; use only a copy you are authorized to use. Do not delete `HenkanWorker.exe` or either runtime folder: Henkan launches the worker internally for conversion, validation, DB building, packaging and Audio QA, and each executable needs its runtime folder.
+The DBTool is a separate Windows prerequisite. It is not bundled in the Henkan FE build; use only a copy you are authorized to use. Do not delete `HenkanFEWorker.exe` or either runtime folder: Henkan FE launches the worker internally for conversion, validation, DB building, packaging and Audio QA, and each executable needs its runtime folder.
 
-Something red in step 2? Its **Find it…** / **Install** button fixes it. Something failed? Henkan tells you
+Something red in step 2? Its **Find it…** / **Install** button fixes it. Something failed? Henkan FE tells you
 what went wrong and what to do, in words.
 
 That's it. That's the README. …okay fine, there's more below.
@@ -79,14 +79,14 @@ and the window remembers its size, current workflow and settings.
 
 ## 🤔 What it actually does
 
-| Problem | What Henkan does about it |
+| Problem | What Henkan FE does about it |
 |---|---|
 | Your bank is a beautiful mess of folders | Finds every `oto.ini` at any depth, reads `prefix.map`, figures out pitches (`C3`, `A#3`…) and voice colours (`Soft`, `弱`, `囁`…) by itself |
 | Your bank is **CV only** and VOCALOID wants transitions | **Fake CVVC**: splices the missing `[V C]`, `[V V]`, `[V ん]` joins from two samples (phase-aligned, so no robot clicks). CV banks can sing legato now. Congrats |
 | Some transitions just… don't exist | Relabels close relatives (`[a k']` from `[a k]`), mutes onsets for `[Sil C]`, fades vowels for `[V Sil]` |
 | Long notes sounded like a skipping CD | Held-vowel loops follow the vowel to where it *really* ends, and short ones get several takes stitched together (~0.8 s), level-matched and EQ'd to match the notes around them |
 | "ke-ko" came out as "ke-ho" | CV entries whose oto starts right on the burst get their silent closure back |
-| A medial Japanese z-row sound was too affricated | VOCALOID's Japanese phoneme label is written as `dz` / `dZ` in every context. In VCV (`V-dz-V`) context Henkan analyzes and prepares the middle segment as a continuous [z]/[Z] fricative, bridging an accidental stop closure when detected. Phrase-initial `Sil-dz` / nasal-conditioned `N-dz` retain the true affricate onset. The label in `.seg` / `.trans` remains `dz` / `dZ` |
+| A medial Japanese z-row sound was too affricated | VOCALOID's Japanese phoneme label is written as `dz` / `dZ` in every context. In VCV (`V-dz-V`) context Henkan FE analyzes and prepares the middle segment as a continuous [z]/[Z] fricative, bridging an accidental stop closure when detected. Phrase-initial `Sil-dz` / nasal-conditioned `N-dz` retain the true affricate onset. The label in `.seg` / `.trans` remains `dz` / `dZ` |
 | `h` sounded like the raw sample | VOCALOID doesn't re-pitch unvoiced sounds, so `h` becomes breath-shaped noise at a sensible volume (not a vowel-loud hiss, we learned that one the hard way) |
 | ん before b / t / k sounded wrong | Every ん flavour (`N\ m n N N' J m'`) gets held-note loops and the units VOCALOID asks for, plus `[Sil N\]` for phrases that start on ん |
 | A unit buzzes like a bee 🐝 | After building, it **reads back the pitch the DBTool analysed** for every unit; if one is an octave off (= buzzy half-pitch undertone), it fixes it and rebuilds. Automatically. While you eat the sandwich |
@@ -169,7 +169,7 @@ The GUI's **ヴ sings as** box (Convert page), or `--v-mode`:
 
 By default a VCV sample like `a か` (`a k a`) supplies the diphones `[a k]` and `[k a]`. Enable **Use matching
 VCV oto.ini aliases when available** (Convert page, Processing), or pass `--use-oto-aliases` (the older
-`--triphones` flag still works), and Henkan also keeps that recorded alias as one whole `[a k a]` unit. For
+`--triphones` flag still works), and Henkan FE also keeps that recorded alias as one whole `[a k a]` unit. For
 example, an `a ba` oto entry maps to `[a b a]` (shown by VOCALOID as `a ^b a`).
 
 The full VCV is taken directly from its own OTO recording; it no longer needs both component diphones to pass
@@ -224,14 +224,14 @@ Windows permission prompt:
 
 **Import VQM samples** is an optional Convert-page feature for VOCALOID4. Official commercial voicebanks
 commonly expose three sibling folders — `art/`, `sta/` and `vqm/` — with the numbered audio samples in
-`vqm/` named `vqm_0.wav`, `vqm_1.wav`, and so on. Point Henkan at the commercial bank root, the `vqm/`
-folder itself, or one WAV. Henkan discovers all `vqm_N.wav` files in numeric order, validates each
+`vqm/` named `vqm_0.wav`, `vqm_1.wav`, and so on. Point Henkan FE at the commercial bank root, the `vqm/`
+folder itself, or one WAV. Henkan FE discovers all `vqm_N.wav` files in numeric order, validates each
 sustained growled-vowel recording (ideally about 1–2 seconds), and adds each as its own unsuffixed `Grw`
 stationary sample. The original numeric `N` is carried through the DBTool build and preserved in the native
-VQM record during Pack. The sibling `art/` and `sta/` folders are not imported: Henkan still builds its
+VQM record during Pack. The sibling `art/` and `sta/` folders are not imported: Henkan FE still builds its
 articulation and stationary data from the UTAU bank being converted.
 
-During Pack, Henkan copies the first 100 `FRM2` analysis frames plus each sample's `SND ` audio chunk into
+During Pack, Henkan FE copies the first 100 `FRM2` analysis frames plus each sample's `SND ` audio chunk into
 the destination DDB and writes native VQM records with rebased pointers. It does not import a donor DDB or
 synthesize a growl from an ordinary vowel. The output `.vvd` advertises Growl only after all VQM pointers
 validate. `Grw` is an internal packing helper, not a lyric users need to type. Native GWL is V4-only.
@@ -248,14 +248,14 @@ Command line: `pack "<DB folder>/<Name>" [--out …] [--name …] [--compid …]
 ### Why a VOCALOID parameter can appear but have no effect
 
 The `.vvd` entries are **static singer defaults/offsets**, not note-by-note automation or alternate
-voice recordings. Henkan now lets you set the four V4 Singer Editor voice offsets BRE, BRI, CLE and
+voice recordings. Henkan FE now lets you set the four V4 Singer Editor voice offsets BRE, BRI, CLE and
 GEN (each signed -127..127) when packaging, or when registering a loose DB in the Developer Editor.
 Zero remains the neutral default. These values are separate from the control curves stored in a
 sequence.
 
 VOCALOID4 stores the controls in different places depending on their role:
 
-| Control | Henkan/V4 representation | What it changes |
+| Control | Henkan FE/V4 representation | What it changes |
 | --- | --- | --- |
 | BRE, BRI, CLE, GEN | Part control curves (`<cc>`) and signed Singer Editor offsets | Breath noise, brightness, clarity and formant/gender character |
 | DYN, POR, PIT, PBS | Part control curves (`<cc>`) | Dynamics, portamento timing, pitch bend and its semitone range; POR needs portamento-enabled notes |
@@ -263,7 +263,7 @@ VOCALOID4 stores the controls in different places depending on their role:
 | GWL | Part control curve (`<cc>`) plus native VQM sample payload | Growl; requires a compatible V4 bank with verified VQM data |
 | XSY | Part control curve (`<cc>`) | Cross-synthesis; requires a configured secondary singer |
 
-Henkan's VOCALOID4 test renderer now writes native VSQX4 `<cc>` control-change records and note-level
+Henkan FE's VOCALOID4 test renderer now writes native VSQX4 `<cc>` control-change records and note-level
 OPE/VEL values instead of silently hardcoding every note to VEL 64 / OPE 127. The diagnostic tool
 `tools/parameter_probe.py` generates separate baseline-vs-parameter VSQX projects for BRE, BRI, CLE,
 GEN, DYN, POR, PIT, PBS, VEL and OPE; it can optionally add a GWL test with `--include-growl`.
@@ -288,7 +288,7 @@ repository's synthetic XML tests prove file structure and ranges, not that every
 respond equally to every control.
 
 GWL is different from the other controls: a `Growl = 1` line by itself is not enough. The bank needs
-its dedicated native Growl data in VQM records. Henkan used to set that line for every V4 package even
+its dedicated native Growl data in VQM records. Henkan FE used to set that line for every V4 package even
 though its packer did not include the VQM sample payloads. This fork fixes that false capability flag
 and adds the optional one-WAV `Grw` conversion above. Parameter availability also depends on voicebank generation
 and track type. See [Yamaha's V4 parameter example](https://www.vocaloid.com/en/articles/how_to_make_tropicalhouse_vocal),
@@ -341,19 +341,19 @@ the bank looks English).
 
 VOCALOID English spells some sounds two ways, and the editor types both: a plosive that starts a
 syllable is **aspirated** (`kiss` = `kh I s`, `big` = `bh I g`, but `sky` = `s k aI`, `rock` = `r Q k`),
-and `l` before a vowel is the **clear** `l0` (`list` = `l0 I s t`, `feel` = `f i: l`). Henkan names each
+and `l` before a vowel is the **clear** `l0` (`list` = `l0 I s t`, `feel` = `f i: l`). Henkan FE names each
 recording by where it sits (`k aa` → `[kh Q]`, `aa k` → `[Q k]`, `l aa` → `[l0 Q]`) and fills the other
 spelling from the same audio, so `ph th kh bh dh gh l0` all sing. In Arpasing, `r` is the consonant (`aa r`,
 `r aa`); only `-` (and `R`) is a rest.
 
 The editor also writes r-coloured vowels Arpasing never records: `are` = `Q@`, `for` = `f O@`, `here` =
-`h I@`, `there` = `D e@`, `cure` = `kh j U@`. Henkan builds them from what the bank has: each starts as its
+`h I@`, `there` = `D e@`, `cure` = `kh j U@`. Henkan FE builds them from what the bank has: each starts as its
 vowel (`[kh Q@]` is the bank's `[kh Q]`, and a held `Q@` holds `Q`), and ends in r (`[Q@ t]` is the bank's
 `aa r` glide spliced into its `er t`; before a vowel, into `r aa`). The report counts them as `rhotic`.
 
 ## 🧰 Requirements
 
-The packaged Henkan application targets **64-bit Windows 10 or Windows 11 on an Intel/AMD x64 PC**. The Windows build is tested in CI on a current 64-bit Windows runner; older Windows releases, 32-bit Windows, and Windows on ARM are not supported targets.
+The packaged Henkan FE application targets **64-bit Windows 10 or Windows 11 on an Intel/AMD x64 PC**. The Windows build is tested in CI on a current 64-bit Windows runner; older Windows releases, 32-bit Windows, and Windows on ARM are not supported targets.
 
 ### PC / laptop specifications
 
@@ -368,12 +368,12 @@ These are practical project recommendations, **not official Yamaha hardware spec
 | Display | App window can resize down to 820 × 640 | 1280 × 800 or higher |
 | Graphics | Integrated graphics is sufficient | No dedicated GPU required |
 
-Henkan analyses audio on the CPU. It does not require CUDA, a discrete graphics card, a microphone, or an always-on internet connection. Keep additional free space for temporary WAVs and output files; a project can use several times the size of its source recordings. Slow CPUs, low RAM, a nearly full drive, or a small display can make processing slower or less reliable even when the application opens.
+Henkan FE analyses audio on the CPU. It does not require CUDA, a discrete graphics card, a microphone, or an always-on internet connection. Keep additional free space for temporary WAVs and output files; a project can use several times the size of its source recordings. Slow CPUs, low RAM, a nearly full drive, or a small display can make processing slower or less reliable even when the application opens.
 
 ### Separate software prerequisites
 
-- **`Henkan.exe` and `HenkanWorker.exe`** must remain together in the same extracted folder, with `_henkan_gui_runtime/` and `_henkan_worker_runtime/` beside them. The runtime folders are required by the onedir builds; the worker is required for conversion, validation, DB building, packaging and Audio QA.
-- **`VocaloidDBTool3.exe` and the language-matched phonetic dictionary** are separate prerequisites for building a singer DB. They are not included in the Henkan package; configure files you are authorized to use.
+- **`HenkanFE.exe` and `HenkanFEWorker.exe`** must remain together in the same extracted folder, with `_henkan_fe_gui_runtime/` and `_henkan_fe_worker_runtime/` beside them. The runtime folders are required by the onedir builds; the worker is required for conversion, validation, DB building, packaging and Audio QA.
+- **`VocaloidDBTool3.exe` and the language-matched phonetic dictionary** are separate prerequisites for building a singer DB. They are not included in the Henkan FE package; configure files you are authorized to use.
 - If the legacy DBTool shows Windows side-by-side error **14001**, it may need the **Microsoft Visual C++ 2008 Redistributable (x86)**, even on 64-bit Windows.
 - **VOCALOID editor** is optional for conversion and DB creation, but needed for installing into an editor and auditioning the result.
 - **Administrator permission** is only needed for install/uninstall steps that write to protected folders or Windows registry locations. Normal conversion and packaging do not need permanent administrator mode.
@@ -383,7 +383,7 @@ See [SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md) for the full checklist and 
 
 ## ⌨️ Command line (for people who think GUIs are for cowards)
 
-(These commands are for source checkouts/contributors. The packaged Windows download launches through Henkan.exe.
+(These commands are for source checkouts/contributors. The packaged Windows download launches through `HenkanFE.exe`.
 `henkan.py` was called `utau2vocaloid.py` before the rename; the compatibility entry point remains in source.)
 
 ```bat
@@ -459,7 +459,7 @@ next to it as `<folder>__orig`.
 
 - **"could not find the phonetic dictionary" / "no dictionary.txt" / "validated it but it says the
   dictionary is missing".** The converter needs the devkit's dictionary: `Japanese Dictionary\Japanese_Dictionary.txt`
-  (English banks: `English Dictionary\english_phonetic_dictionary_20061220.txt`). Put the Henkan
+  (English banks: `English Dictionary\english_phonetic_dictionary_20061220.txt`). Put the Henkan FE
   folder inside the devkit folder and it's found automatically, or pick it under **Phonetic dictionary** in
   the GUI (`--dict` on the command line). Then **Convert again** before building.
 - **The build got stuck.** In the background it can't wait for you, so it closes that DBTool and runs the
@@ -468,13 +468,13 @@ next to it as `<folder>__orig`.
   Database* → *Exit*. (Don't close the DBTool while the log says it's working.)
 - **"timed out waiting for Singer database Path & Name. On screen: [] ; []".** Fixed in the next version. The
   DBTool is an old program that can only read paths written in your Windows language. A Japanese-named bank on a
-  Portuguese PC (or an accented folder on a Japanese one) made it quietly ignore its dictionary. Henkan now
+  Portuguese PC (or an accented folder on a Japanese one) made it quietly ignore its dictionary. Henkan FE now
   gives it copies in a folder it can read and moves the finished DB to where you asked.
 - **`PermissionError: [Errno 13] Permission denied: '...\<a folder>'` / "Building the singer DB failed".**
   Fixed in the next version. The output folder had another folder inside it (often the UTAU bank itself), and
   the build tried to copy that folder like a file. Running as administrator doesn't help. Until you update,
   move that folder out of the output folder.
-- **Henkan opens but a task cannot start.** Check that `HenkanWorker.exe` is beside `Henkan.exe` and that both `_henkan_gui_runtime/` and `_henkan_worker_runtime/` folders are still beside them. Re-extract the complete Windows package if any required file or folder is missing or quarantined by security software.
+- **Henkan FE opens but a task cannot start.** Check that `HenkanFEWorker.exe` is beside `HenkanFE.exe` and that both `_henkan_fe_gui_runtime/` and `_henkan_fe_worker_runtime/` folders are still beside them. Re-extract the complete Windows package if any required file or folder is missing or quarantined by security software.
 - **"The application has failed to start because its side-by-side configuration is incorrect"
   (VocaloidDBTool3.exe).** The DBTool needs the **Microsoft Visual C++ 2008 Redistributable, x86** version, even
   on 64-bit Windows. Install it, restart the PC, build again.
@@ -501,9 +501,9 @@ next to it as `<folder>__orig`.
 Only convert and share banks whose terms allow it, **credit the original voice provider**, and don't
 redistribute Yamaha's developer kit or anything made from VOCALOID's own voice data. Be cool. 😎
 
-## 🎨 Henkan brand assets
+## 🎨 Henkan FE brand assets
 
-The official Henkan icon, standalone mark, and light/dark wordmarks are included in [`assets/brand/`](assets/brand/). The GUI uses the app icon in its header and window; Windows builds embed the `.ico` in `Henkan.exe` and bundle the brand resources. The source SVGs remain editable. See [the branding guide](docs/BRANDING.md) for file usage and the colour palette.
+The icon adapted from the original Henkan artwork, standalone mark, and Henkan FE light/dark wordmarks are included in [`assets/brand/`](assets/brand/). The GUI uses the app icon in its header and window; Windows builds embed the `.ico` in `HenkanFE.exe` and bundle the brand resources. The source SVGs remain editable. See [the branding guide](docs/BRANDING.md) for file usage and the colour palette.
 
 ## License
 

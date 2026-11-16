@@ -1,4 +1,4 @@
-"""Console worker for Henkan's frozen GUI application.
+"""Console worker for Henkan FE's frozen GUI application.
 
 The GUI launches this helper with redirected stdout/stderr so task output appears in its
 activity console. It is not intended to be launched directly by users.
@@ -12,7 +12,7 @@ def main(argv=None):
             stream.reconfigure(encoding='utf-8', errors='replace')
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
-        print("HenkanWorker is an internal helper. Launch Henkan.exe instead.")
+        print("HenkanFEWorker is an internal helper. Launch HenkanFE.exe instead.")
         return 2
 
     mode, *args = argv
