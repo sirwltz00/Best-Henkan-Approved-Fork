@@ -97,7 +97,7 @@ JA_VOWEL = {'a': 'a', 'i': 'i', 'u': 'M', 'e': 'e', 'o': 'o'}
 JA_CONS = {
     '': (None, None), 'k': ('k', "k'"), 'g': ('g', "g'"), 's': ('s', 's'), 'sh': ('S', 'S'),
     # VOCALOID Japanese notation uses dz/dZ for these phonemes in every context.
-    # Henkan distinguishes medial fricative realization acoustically, not by changing the label.
+    # Henkan FE distinguishes medial fricative realization acoustically, not by changing the label.
     'z': ('dz', 'dz'), 'j': ('dZ', 'dZ'), 't': ('t', "t'"), 'ch': ('tS', 'tS'), 'ts': ('ts', 'ts'),
     'd': ('d', "d'"), 'n': ('n', 'J'), 'h': ('h', 'C'), 'f': ('p\\', "p\\'"), 'b': ('b', "b'"),
     'p': ('p', "p'"), 'm': ('m', "m'"), 'y': ('j', 'j'), 'r': ('4', "4'"), 'w': ('w', 'w'),

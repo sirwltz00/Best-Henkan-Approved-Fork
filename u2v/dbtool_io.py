@@ -27,7 +27,7 @@ def load_dictionary_txt(path):
     group, voiced = None, None
     with open(path, encoding='latin-1') as fh:
         lines = fh.read().splitlines(True)
-    # our files write "a#1" as "aX1" (EVEC_STANDIN); ones written before the rename say utau2vocaloid
+    # our files write "a#1" as "aX1" (EVEC_STANDIN); older upstream files may say Henkan or utau2vocaloid
     ours = bool(lines) and ('Henkan' in lines[0] or 'utau2vocaloid' in lines[0])
     for raw in lines:
         if ours:
@@ -91,7 +91,7 @@ def write_dictionary(path, d, suffixes=(), vowels_only=False):
     for ph, v in d.voiced.items():
         g = d.groups.get(ph) or ('Voiced' if v else 'Unvoiced')
         groups.setdefault((g, v), []).append(ph)
-    lines = ['# written by Henkan: create the singer database from this file', '']
+    lines = ['# written by Henkan FE: create the singer database from this file', '']
     for (g, v), phs in groups.items():
         lines.append('phonetic_group(name="%s", voiced=%s):' % (g, 'true' if v else 'false'))
         lines += ['\t' + p for p in phs]

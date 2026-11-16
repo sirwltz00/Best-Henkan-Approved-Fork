@@ -595,7 +595,7 @@ def _make_vqm_stream(records):
 
 
 def add_vqm_from_grw_stationary(ddi_path, ddb_path, phoneme='Grw', log=print, vqm_indices=None):
-    """Create native VQM data from Henkan's imported Grw stationary WAV.
+    """Create native VQM data from Henkan FE's imported Grw stationary WAV.
 
     The DBTool has already analysed the WAV into an ordinary stationary entry. This
     routine copies only its first 100 FRM2 analysis frames and its one SND audio chunk
@@ -1205,7 +1205,7 @@ def make_package(db_path, out_dir=None, name=None, compid=None, db_version='4', 
         vqm_indices = _load_vqm_sample_indexes(db_path)
         ddb_src, ddi_src = pack_db(db_path, package, log=log)
         # pack_db handles articulation/stationary payloads, not source-tree VQM offsets.
-        # Remove any inherited VQM node, then rebuild it only from Henkan's own Grw
+        # Remove any inherited VQM node, then rebuild it only from Henkan FE's own Grw
         # stationary WAV after DBTool has analysed that recording.
         stripped = strip_vqm_from_ddi(ddi_src, log=log)
         if stripped:

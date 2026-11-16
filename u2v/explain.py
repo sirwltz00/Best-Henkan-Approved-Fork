@@ -11,9 +11,9 @@ KNOWN = [
      'It needs the "Microsoft Visual C++ 2008 Redistributable", x86 version (also on 64-bit Windows). '
      'Install it, restart the PC and press Make my voicebank again.'),
     (r"No module named '?(pywinauto|win32\w*|pywintypes|numpy)",
-     'A Python package Henkan needs is missing ({0}).',
-     'Close Henkan and double-click "Henkan GUI.bat": it installs what is missing. Or open a command prompt '
-     'in the Henkan folder and run:  pip install -r requirements.txt'),
+     'A Python package Henkan FE needs is missing ({0}).',
+     'Close Henkan FE and double-click "Henkan FE GUI.bat": it installs what is missing. Or open a command prompt '
+     'in the Henkan FE folder and run:  pip install -r requirements.txt'),
     (r'no STA block|no stationaries',
      'The DBTool made a DB without stationaries (its vowel sounds).',
      'Press Make my voicebank again with "Show the DBTool while it works" ticked and watch the Automatic '
@@ -25,7 +25,7 @@ KNOWN = [
      'hook into file windows, and this is where it froze) and pause your antivirus, then tick "Show the DBTool '
      'while it works" and try again. If it freezes again, post the log on r/VocaloidPort so it can be fixed.'),
     (r'phonetic dictionary|no dictionary\.txt',
-     'Henkan could not find the phonetic dictionary.',
+     'Henkan FE could not find the phonetic dictionary.',
      'It comes with the VOCALOID3 devkit (Japanese Dictionary\\Japanese_Dictionary.txt). Press "Find it…" '
      'next to Dictionary in step 2.'),
     (r'already exists',
@@ -35,10 +35,10 @@ KNOWN = [
      'The DBTool cannot use that singer name.',
      'Use plain letters and digits only (A-Z, 0-9) in step 3.'),
     (r'VocaloidDBTool3\.exe not found|cannot find the DBTool|DBTool.*not found',
-     'Henkan could not find VocaloidDBTool3.exe.',
+     'Henkan FE could not find VocaloidDBTool3.exe.',
      'Press "Find it…" next to DBTool in step 2 and pick VocaloidDBTool3.exe in your devkit folder.'),
     (r'Permission denied|PermissionError',
-     'Windows would not let Henkan open a file.',
+     'Windows would not let Henkan FE open a file.',
      'Close anything that has the voicebank open (the DBTool, an editor, a folder window), then try again. '
      'If it names a folder, move that folder out of the output folder.'),
     (r'lists no files',
@@ -63,5 +63,5 @@ def explain(log_text):
     last = bad[-1] if bad else (lines[-1] if lines else '')
     fix = 'The details are in the log at the bottom of the window.'
     if last:
-        fix = 'Henkan said:\n\n    %s\n\n%s' % (last, fix)
+        fix = 'Henkan FE said:\n\n    %s\n\n%s' % (last, fix)
     return 'This step did not finish.', fix
