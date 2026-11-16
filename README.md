@@ -3,7 +3,7 @@
 > Community improvement fork of Henkan. This fork keeps the original deterministic, sample-based conversion approach and focuses on stronger analysis, safer unit selection and better joins.
 
 
-[![Release](https://img.shields.io/github/v/release/GooberNiko/Henkan)](https://github.com/GooberNiko/Henkan/releases/latest)
+[![Release](https://img.shields.io/github/v/release/sirwltz00/Best-Henkan-Approved-fork)](https://github.com/sirwltz00/Best-Henkan-Approved-Fork/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![Windows](https://img.shields.io/badge/platform-Windows-0078d4)
 ![Python 3.10+ source](https://img.shields.io/badge/source-Python%203.10%2B-3776ab)
