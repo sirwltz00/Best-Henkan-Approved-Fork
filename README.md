@@ -1,6 +1,13 @@
-# Best-Henkan-Approved-Fork 🎤➡️🎹
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/henkan-wordmark-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/brand/henkan-wordmark.png">
+    <img src="assets/brand/henkan-wordmark.png" alt="Henkan — voicebank converter" width="720">
+  </picture>
+  <p><strong>Best-Henkan-Approved-Fork</strong> · Community improvement fork of Henkan</p>
+</div>
 
-> Community improvement fork of Henkan. This fork keeps the original deterministic, sample-based conversion approach and focuses on stronger analysis, safer unit selection and better joins.
+> This fork keeps the original deterministic, sample-based conversion approach and focuses on stronger analysis, safer unit selection and better joins.
 
 
 [![Release](https://img.shields.io/github/v/release/sirwltz00/Best-Henkan-Approved-fork)](https://github.com/sirwltz00/Best-Henkan-Approved-Fork/releases/latest)
@@ -493,6 +500,10 @@ next to it as `<folder>__orig`.
 
 Only convert and share banks whose terms allow it, **credit the original voice provider**, and don't
 redistribute Yamaha's developer kit or anything made from VOCALOID's own voice data. Be cool. 😎
+
+## 🎨 Henkan brand assets
+
+The official Henkan icon, standalone mark, and light/dark wordmarks are included in [`assets/brand/`](assets/brand/). The GUI uses the app icon in its header and window; Windows builds embed the `.ico` in `Henkan.exe` and bundle the brand resources. The source SVGs remain editable. See [the branding guide](docs/BRANDING.md) for file usage and the colour palette.
 
 ## License
 

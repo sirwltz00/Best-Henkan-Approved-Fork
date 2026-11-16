@@ -35,6 +35,9 @@ def _self_test():
         required = (
             os.path.join(root, "v3v2", "idtables.json"),
             os.path.join(root, "v3v2", "v2_japanese_units.json"),
+            os.path.join(root, "assets", "brand", "henkan-icon-128.png"),
+            os.path.join(root, "assets", "brand", "henkan-icon.ico"),
+            os.path.join(root, "assets", "brand", "henkan-wordmark-dark.png"),
         )
         missing = [path for path in required if not os.path.isfile(path)]
         if missing:
@@ -46,7 +49,7 @@ def _self_test():
             "SELF-TEST PASSED\n"
             "Frozen GUI imports: customtkinter, numpy, gui, u2v, "
             "v3v2.convert, v3v2.install\n"
-            "Bundled V3/V2 JSON resources: present\n"
+            "Bundled V3/V2 JSON resources and Henkan brand assets: present\n"
             "PyInstaller runtime directory: " + root
         )
         return 0

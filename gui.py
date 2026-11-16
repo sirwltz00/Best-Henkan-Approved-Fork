@@ -26,6 +26,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable)) if FROZEN else os.pat
 # PyInstaller keeps bundled modules and resources in _MEIPASS. Keep that runtime
 # directory separate from the folder containing Henkan.exe and HenkanWorker.exe.
 ROOT = getattr(sys, '_MEIPASS', APP_DIR) if FROZEN else APP_DIR
+BRAND_ASSET_DIR = os.path.join(ROOT, 'assets', 'brand')
 
 
 def _default_devkit_dir():
@@ -782,6 +783,7 @@ class App(ctk.CTk):
         self.title('Henkan — UTAU → VOCALOID ' + __version__)
         self.geometry('960x900')
         self.minsize(820, 640)
+        self._set_window_icon()
         self.runner = Runner(self)
         self.v = {}
         self.groups = []          # [(group, entries)]
@@ -794,6 +796,22 @@ class App(ctk.CTk):
         self.protocol('WM_DELETE_WINDOW', self._close)
         if self.v['bank'].get() and os.path.isdir(self.v['bank'].get()):
             self.after(200, lambda: (self.scan(), self._easy_check()))
+
+    def _set_window_icon(self):
+        """Apply the bundled Henkan icon to the native window and taskbar."""
+        png_path = os.path.join(BRAND_ASSET_DIR, 'henkan-icon-128.png')
+        ico_path = os.path.join(BRAND_ASSET_DIR, 'henkan-icon.ico')
+        if os.path.isfile(png_path):
+            try:
+                self._window_icon = tk.PhotoImage(file=png_path)
+                self.iconphoto(True, self._window_icon)
+            except tk.TclError:
+                self._window_icon = None
+        if sys.platform == 'win32' and os.path.isfile(ico_path):
+            try:
+                self.iconbitmap(ico_path)
+            except tk.TclError:
+                pass
 
     # ------------------------------------------------------------------ state
     def _vars(self):
@@ -1366,11 +1384,25 @@ class App(ctk.CTk):
         h = ctk.CTkFrame(self, height=76, fg_color='#0d1118', corner_radius=0)
         h.pack(fill='x')
         h.pack_propagate(False)
-        mark = ctk.CTkFrame(h, width=48, height=48, fg_color=ACCENT, corner_radius=13)
-        mark.pack(side='left', padx=(18, 12), pady=14)
-        mark.pack_propagate(False)
-        ctk.CTkLabel(mark, text='変', text_color='#ffffff',
-                     font=('Yu Gothic UI', 21, 'bold')).place(relx=0.5, rely=0.48, anchor='center')
+        brand_icon_path = os.path.join(BRAND_ASSET_DIR, 'henkan-icon-128.png')
+        brand_icon_loaded = False
+        if os.path.isfile(brand_icon_path):
+            try:
+                from PIL import Image
+                brand_image = Image.open(brand_icon_path)
+                self._brand_ctk_icon = ctk.CTkImage(
+                    light_image=brand_image, dark_image=brand_image, size=(48, 48))
+                ctk.CTkLabel(h, text='', image=self._brand_ctk_icon,
+                             fg_color='transparent').pack(side='left', padx=(18, 12), pady=14)
+                brand_icon_loaded = True
+            except (ImportError, OSError, RuntimeError, ValueError):
+                brand_icon_loaded = False
+        if not brand_icon_loaded:
+            mark = ctk.CTkFrame(h, width=48, height=48, fg_color=ACCENT, corner_radius=13)
+            mark.pack(side='left', padx=(18, 12), pady=14)
+            mark.pack_propagate(False)
+            ctk.CTkLabel(mark, text='変', text_color='#ffffff',
+                         font=('Yu Gothic UI', 21, 'bold')).place(relx=0.5, rely=0.48, anchor='center')
         title_box = ctk.CTkFrame(h, fg_color='transparent')
         title_box.pack(side='left', pady=12)
         ctk.CTkLabel(title_box, text='Henkan', text_color='#ffffff',

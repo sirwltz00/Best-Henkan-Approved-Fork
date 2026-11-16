@@ -5,7 +5,7 @@ The supported packaged release is Windows-only and targets 64-bit Windows 10/11 
 - `Henkan.exe` — the windowed CustomTkinter application users launch.
 - `HenkanWorker.exe` — an internal console helper used by the GUI to run conversion, validation, DBTool automation, packaging and Audio QA while streaming output into the GUI. Keep it beside `Henkan.exe`.
 
-Both are PyInstaller **onedir** builds. The release ZIP places both executables at its top level and includes `_henkan_gui_runtime/` and `_henkan_worker_runtime/` beside them. Keep those runtime folders in place; they contain each executable's bundled libraries and data files. The two runtime folders are separate so the GUI and worker cannot overwrite each other's files.
+Both are PyInstaller **onedir** builds. The GUI build embeds the Henkan Windows icon and bundles `assets/brand/` for the in-app icon. The release ZIP places both executables at its top level and includes `_henkan_gui_runtime/` and `_henkan_worker_runtime/` beside them. Keep those runtime folders in place; they contain each executable's bundled libraries and data files. The two runtime folders are separate so the GUI and worker cannot overwrite each other's files.
 
 The workflow is `.github/workflows/build.yml`. Push a branch/commit, open a pull request, or run it manually from **Actions → Build Windows application**. A successful run uploads `Henkan-Windows.zip` as a workflow artifact.
 
@@ -23,13 +23,17 @@ python -m pytest -q
 # generated spec directory instead of the repository root.
 $idTables = (Resolve-Path "v3v2/idtables.json").Path
 $v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
+$brandAssets = (Resolve-Path "assets/brand").Path
+$appIcon = (Resolve-Path "assets/brand/henkan-icon.ico").Path
 
 python -m PyInstaller --clean --noconfirm --onedir --windowed --name Henkan `
+  --icon "$appIcon" `
   --contents-directory _henkan_gui_runtime `
   --distpath dist/gui --workpath build/gui --specpath build/spec-gui `
   --collect-all customtkinter --collect-all numpy `
   --add-data "$idTables;v3v2" `
-  --add-data "$v2JapaneseUnits;v3v2" henkan_app.py
+  --add-data "$v2JapaneseUnits;v3v2" `
+  --add-data "$brandAssets;assets/brand" henkan_app.py
 
 python -m PyInstaller --clean --noconfirm --onedir --console --name HenkanWorker `
   --contents-directory _henkan_worker_runtime `
