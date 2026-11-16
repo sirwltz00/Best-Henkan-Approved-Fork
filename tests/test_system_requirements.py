@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 
 from system_requirements import collect_system_info, evaluate_system, overall_status
@@ -34,6 +36,22 @@ class SystemRequirementsTests(unittest.TestCase):
         self.assertIn('disk_free_bytes', info)
         self.assertEqual((info['screen_width'], info['screen_height']), (1366, 768))
         self.assertTrue(info['worker_path'].endswith('henkan_worker.py'))
+
+    def test_frozen_worker_requires_its_onedir_runtime_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            worker = os.path.join(folder, 'HenkanWorker.exe')
+            runtime = os.path.join(folder, '_henkan_worker_runtime')
+            with open(worker, 'wb') as stream:
+                stream.write(b'test')
+
+            info = collect_system_info(app_dir=folder, frozen=True)
+            self.assertFalse(info['worker_exists'])
+            self.assertEqual(info['worker_runtime_path'], runtime)
+
+            os.mkdir(runtime)
+            info = collect_system_info(app_dir=folder, frozen=True)
+            self.assertTrue(info['worker_exists'])
+            self.assertTrue(info['worker_runtime_exists'])
 
     def test_recommended_pc_passes(self):
         rows = evaluate_system(self.sample())
