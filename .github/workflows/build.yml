@@ -51,6 +51,9 @@ jobs:
             --add-data "$idTables;v3v2" `
             --add-data "$v2JapaneseUnits;v3v2" `
             henkan_app.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "PyInstaller GUI build failed ($LASTEXITCODE)."
+          }
 
       - name: Build internal console worker
         shell: pwsh
@@ -66,16 +69,73 @@ jobs:
             --add-data "$idTables;v3v2" `
             --add-data "$v2JapaneseUnits;v3v2" `
             henkan_worker.py
+          if ($LASTEXITCODE -ne 0) {
+            throw "PyInstaller worker build failed ($LASTEXITCODE)."
+          }
 
       - name: Smoke-test frozen executables
         shell: pwsh
         run: |
-          & "dist/gui/Henkan.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Henkan GUI bundle self-test failed ($LASTEXITCODE)." }
-          & "dist/worker/HenkanWorker.exe" --cli --version
-          if ($LASTEXITCODE -ne 0) { throw "HenkanWorker CLI self-test failed ($LASTEXITCODE)." }
-          & "dist/worker/HenkanWorker.exe" --qa
-          if ($LASTEXITCODE -ne 0) { throw "HenkanWorker Audio QA self-test failed ($LASTEXITCODE)." }
+          function Invoke-HenkanSmokeTest {
+            param(
+              [Parameter(Mandatory=$true)][string]$FilePath,
+              [Parameter(Mandatory=$true)][string[]]$Arguments,
+              [Parameter(Mandatory=$true)][string]$Name
+            )
+
+            $safeName = $Name -replace '[^A-Za-z0-9_.-]', '_'
+            $stdout = Join-Path $env:RUNNER_TEMP "$safeName.stdout.log"
+            $stderr = Join-Path $env:RUNNER_TEMP "$safeName.stderr.log"
+            Remove-Item $stdout, $stderr -Force -ErrorAction SilentlyContinue
+
+            if (!(Test-Path $FilePath -PathType Leaf)) {
+              throw "$Name executable not found: $FilePath"
+            }
+
+            $process = Start-Process `
+              -FilePath (Resolve-Path $FilePath).Path `
+              -ArgumentList $Arguments `
+              -WorkingDirectory (Get-Location).Path `
+              -RedirectStandardOutput $stdout `
+              -RedirectStandardError $stderr `
+              -PassThru -Wait
+
+            if (Test-Path $stdout) {
+              Get-Content $stdout
+            }
+            if (Test-Path $stderr) {
+              Get-Content $stderr
+            }
+
+            if ($process.ExitCode -ne 0) {
+              throw "$Name failed (exit code $($process.ExitCode)). Logs: $stdout ; $stderr"
+            }
+          }
+
+          $guiLog = Join-Path $env:RUNNER_TEMP "henkan-gui-self-test.log"
+          Remove-Item $guiLog -Force -ErrorAction SilentlyContinue
+          $env:HENKAN_SELF_TEST_LOG = $guiLog
+          try {
+            Invoke-HenkanSmokeTest -FilePath "dist/gui/Henkan.exe" `
+              -Arguments @("--self-test") -Name "Henkan GUI bundle self-test"
+
+            if (!(Test-Path $guiLog -PathType Leaf)) {
+              throw "Henkan GUI self-test exited successfully but did not create its diagnostic log."
+            }
+            $guiLogText = Get-Content $guiLog -Raw
+            Write-Host $guiLogText
+            if ($guiLogText -notmatch 'SELF-TEST PASSED') {
+              throw "Henkan GUI self-test did not report success. Diagnostic log: $guiLog"
+            }
+          }
+          finally {
+            Remove-Item Env:HENKAN_SELF_TEST_LOG -ErrorAction SilentlyContinue
+          }
+
+          Invoke-HenkanSmokeTest -FilePath "dist/worker/HenkanWorker.exe" `
+            -Arguments @("--cli", "--version") -Name "HenkanWorker CLI self-test"
+          Invoke-HenkanSmokeTest -FilePath "dist/worker/HenkanWorker.exe" `
+            -Arguments @("--qa") -Name "HenkanWorker Audio QA self-test"
 
       - name: Assemble Windows application ZIP
         shell: pwsh
