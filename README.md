@@ -501,10 +501,6 @@ next to it as `<folder>__orig`.
 Only convert and share banks whose terms allow it, **credit the original voice provider**, and don't
 redistribute Yamaha's developer kit or anything made from VOCALOID's own voice data. Be cool. 😎
 
-## 🎨 Henkan FE brand assets
-
-The icon adapted from the original Henkan artwork, standalone mark, and Henkan FE light/dark wordmarks are included in [`assets/brand/`](assets/brand/). The GUI uses the app icon in its header and window; Windows builds embed the `.ico` in `HenkanFE.exe` and bundle the brand resources. The source SVGs remain editable. See [the branding guide](docs/BRANDING.md) for file usage and the colour palette.
-
 ## License
 
 MIT, see [LICENSE](LICENSE). VOCALOID is a trademark of Yamaha Corporation; this project is not affiliated
