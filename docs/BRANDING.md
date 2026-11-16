@@ -1,12 +1,12 @@
-# Henkan brand assets
+# Henkan FE brand assets
 
 The complete, editable brand kit lives in [`assets/brand/`](../assets/brand/). Keep the original SVG and raster
 files together so the app, Windows build, README, and future materials use the same source artwork.
 
 ## Identity
 
-The symbol reads left to right: a recorded-audio waveform, a conversion arrow, and a piano keyboard. It represents
-Henkan's conversion of recorded UTAU voicebank material into a VOCALOID singer database.
+Henkan FE keeps the original Henkan waveform-to-keyboard symbol so the source project's identity is preserved. The
+light and dark wordmarks are adapted to read **Henkan FE** and **FAN EDITION · VOICEBANK CONVERTER**.
 
 ## Files and intended use
 
@@ -19,7 +19,7 @@ Henkan's conversion of recorded UTAU voicebank material into a VOCALOID singer d
 | `henkan-wordmark.svg` / `henkan-wordmark.png` | Horizontal logo for light backgrounds, including this README |
 | `henkan-wordmark-dark.svg` / `henkan-wordmark-dark.png` | Horizontal logo for dark backgrounds |
 
-The PNG wordmarks are previews of their corresponding editable SVG artwork. The SVG wordmarks use system font
+The PNG wordmarks are previews of their corresponding editable SVG artwork, adapted for the Henkan FE name. The icon symbol itself remains inherited from the original Henkan artwork. The SVG wordmarks use system font
 fallbacks and do not embed a proprietary font.
 
 ## Colour palette
@@ -27,7 +27,7 @@ fallbacks and do not embed a proprietary font.
 | Name | Hex | Suggested role |
 |---|---|---|
 | Deep navy | `#10151F` / `#202A3A` | Main dark surfaces |
-| Henkan pink | `#D6336C` | Primary accent |
+| Henkan FE pink | `#D6336C` | Primary accent |
 | Light pink | `#F58AAE` | Accent highlights |
 | Ivory | `#F7F1F4` | Light foregrounds |
 | Slate | `#647084` | Secondary text and details |
@@ -36,7 +36,7 @@ fallbacks and do not embed a proprietary font.
 
 The CustomTkinter window loads `henkan-icon-128.png` from `assets/brand/` for its header and native window icon.
 On Windows it also applies `henkan-icon.ico` to the native window. The PyInstaller GUI build embeds that ICO as the
-`Henkan.exe` file icon and bundles the whole brand directory at `assets/brand/`; the GUI bundle self-test checks
+`HenkanFE.exe` file icon and bundles the whole brand directory at `assets/brand/`; the GUI bundle self-test checks
 that the required resources are present.
 
 The build commands in [BUILDING_WINDOWS.md](../BUILDING_WINDOWS.md) and

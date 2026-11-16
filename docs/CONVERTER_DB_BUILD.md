@@ -1,6 +1,6 @@
 # Converter, OTO and DB build improvements
 
-This document describes the non-audio-analysis changes in Best-Henkan-Approved-Fork. The project remains a deterministic UTAU-to-VOCALOID converter: it interprets source voicebank recordings and produces the sidecars and database input expected by the VOCALOID3 DBTool.
+This document describes the non-audio-analysis changes in Henkan Fan Edition (Henkan FE). The project remains a deterministic UTAU-to-VOCALOID converter: it interprets source voicebank recordings and produces the sidecars and database input expected by the VOCALOID3 DBTool.
 
 ## OTO parsing
 
@@ -14,7 +14,7 @@ Shared-suffix inference is deliberately conservative. Tiny OTO files do not prov
 
 OTO timing values describe different things and must not be used as if they were interchangeable. OpenUtau's voicebank-development guide describes offset as the phoneme start, overlap as the blend region with the previous note, preutterance as the musical note start, and consonant/fixed-region as the region that is not stretched or looped ([OpenUtau voicebank development](https://github.com/openutau/openutau.com/blob/main/wiki/Voicebank-development.md)).
 
-Henkan uses these roles as priors:
+Henkan FE uses these roles as priors:
 
 - **C→V:** the fixed-region/consonant marker is the primary prior for the transition into a sustained vowel.
 - **V→C:** the overlap marker is preferred for the outgoing transition when it is inside the usable sample region.
@@ -27,7 +27,7 @@ This is a prior-based approach, not a claim that every OTO marker is perfectly a
 
 ## DBTool preflight and output verification
 
-Before opening the Windows DBTool, Henkan validates the complete converted folder:
+Before opening the Windows DBTool, Henkan FE validates the complete converted folder:
 
 - each `.trans` has phoneme text and valid articulation directives;
 - every referenced phoneme exists in the selected dictionary;
@@ -38,7 +38,7 @@ Before opening the Windows DBTool, Henkan validates the complete converted folde
 - manifest references resolve and orphan/missing sidecars are reported;
 - DBTool text parser constraints (including `.trans` size and line limits) are checked before launch.
 
-A build also refuses to overwrite an existing DB or partial `.dat`/`.tree` output. After DBTool exits, Henkan checks that both `.dat` and `.tree` exist and are nontrivial, then reads the PHDC phoneme dictionary back from the generated `.dat`. Missing `singer.inf` is a warning for manual inspection rather than an automatic success assumption.
+A build also refuses to overwrite an existing DB or partial `.dat`/`.tree` output. After DBTool exits, Henkan FE checks that both `.dat` and `.tree` exist and are nontrivial, then reads the PHDC phoneme dictionary back from the generated `.dat`. Missing `singer.inf` is a warning for manual inspection rather than an automatic success assumption.
 
 ## GUI improvements
 

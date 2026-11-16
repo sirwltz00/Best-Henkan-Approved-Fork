@@ -1,7 +1,7 @@
-# Henkan audio analysis
+# Henkan FE audio analysis
 
 This note documents the signal path used by `u2v/audio.py` and the parts of
-`u2v/convert.py` that consume it. Henkan is a deterministic, sample-based
+`u2v/convert.py` that consume it. Henkan FE is a deterministic, sample-based
 converter. It does not use a neural model or attempt to replace the voicebank's
 recording style.
 
@@ -150,7 +150,7 @@ editor.
   gentle and cannot replace phoneme-aware listening.
 - The LPC formant helper can produce unstable tracks when a frame is not a
   clean, sufficiently long voiced vowel.
-- Henkan does not yet perform automatic dereverberation or aggressive denoising.
+- Henkan FE does not yet perform automatic dereverberation or aggressive denoising.
   That is intentional: poorly chosen cleanup can destroy consonant detail.
 - A voiced-fricative edge can be hard to distinguish from a stop release when
   a recording has no clear spectral or energy contrast. In that case the OTO

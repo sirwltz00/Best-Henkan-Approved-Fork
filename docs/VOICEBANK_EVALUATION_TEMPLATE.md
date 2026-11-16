@@ -10,7 +10,7 @@ whether converted transitions sound natural in a VOCALOID editor.
 - Voice colour / pitch:
 - Recording sample rate and bit depth:
 - Recording environment / microphone notes:
-- Henkan fork commit:
+- Henkan FE fork commit:
 - VOCALOID editor and DBTool version:
 
 ## Analysis checks
@@ -43,7 +43,7 @@ defects and should not be flattened simply to make a waveform look cleaner.
 
 ## Boundary error measurements
 
-For each manually labeled boundary, record the reference time and Henkan's
+For each manually labeled boundary, record the reference time and Henkan FE's
 selected time. Report median absolute error and 95th-percentile absolute error
 in milliseconds, separately by transition class. Keep OTO-fallback boundaries
 separate from acoustically detected boundaries.
