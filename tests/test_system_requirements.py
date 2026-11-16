@@ -22,7 +22,7 @@ class SystemRequirementsTests(unittest.TestCase):
             'disk_path': 'C:\\',
             'screen_width': 1920,
             'screen_height': 1080,
-            'worker_path': 'C:\\Henkan\\HenkanWorker.exe',
+            'worker_path': 'C:\\Henkan FE\\HenkanFEWorker.exe',
             'worker_exists': True,
             'frozen': True,
         }
@@ -39,8 +39,8 @@ class SystemRequirementsTests(unittest.TestCase):
 
     def test_frozen_worker_requires_its_onedir_runtime_folder(self):
         with tempfile.TemporaryDirectory() as folder:
-            worker = os.path.join(folder, 'HenkanWorker.exe')
-            runtime = os.path.join(folder, '_henkan_worker_runtime')
+            worker = os.path.join(folder, 'HenkanFEWorker.exe')
+            runtime = os.path.join(folder, '_henkan_fe_worker_runtime')
             with open(worker, 'wb') as stream:
                 stream.write(b'test')
 
