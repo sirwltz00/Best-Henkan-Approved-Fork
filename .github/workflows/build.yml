@@ -40,24 +40,31 @@ jobs:
       - name: Build windowed Henkan application
         shell: pwsh
         run: |
+          # Resolve sources from the repository root before PyInstaller writes its .spec.
+          # Relative --add-data inputs would be resolved under build/spec-gui or
+          # build/spec-worker because those custom spec directories are configured below.
+          $idTables = (Resolve-Path "v3v2/idtables.json").Path
+          $v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
           python -m PyInstaller --clean --noconfirm --onefile --windowed --name Henkan `
             --distpath dist/gui --workpath build/gui --specpath build/spec-gui `
             --collect-all customtkinter --collect-all numpy `
-            --add-data "v3v2/idtables.json;v3v2" `
-            --add-data "v3v2/v2_japanese_units.json;v3v2" `
+            --add-data "$idTables;v3v2" `
+            --add-data "$v2JapaneseUnits;v3v2" `
             henkan_app.py
 
       - name: Build internal console worker
         shell: pwsh
         run: |
+          $idTables = (Resolve-Path "v3v2/idtables.json").Path
+          $v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
           python -m PyInstaller --clean --noconfirm --onefile --console --name HenkanWorker `
             --distpath dist/worker --workpath build/worker --specpath build/spec-worker `
             --collect-all numpy --collect-all pywinauto `
             --hidden-import pythoncom --hidden-import pywintypes --hidden-import win32timezone `
             --hidden-import win32api --hidden-import win32con --hidden-import win32gui `
             --hidden-import win32process --hidden-import win32event --hidden-import win32com.client `
-            --add-data "v3v2/idtables.json;v3v2" `
-            --add-data "v3v2/v2_japanese_units.json;v3v2" `
+            --add-data "$idTables;v3v2" `
+            --add-data "$v2JapaneseUnits;v3v2" `
             henkan_worker.py
 
       - name: Smoke-test frozen executables
