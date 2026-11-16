@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build-windows:
-    name: Test and package Henkan for Windows
+    name: Test and package Henkan FE for Windows
     runs-on: windows-latest
     timeout-minutes: 40
 
@@ -37,7 +37,7 @@ jobs:
       - name: Run regression tests
         run: python -m pytest -q
 
-      - name: Build windowed Henkan application
+      - name: Build Henkan FE windowed application
         shell: pwsh
         run: |
           # Resolve sources from the repository root before PyInstaller writes its .spec.
@@ -47,9 +47,9 @@ jobs:
           $v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
           $brandAssets = (Resolve-Path "assets/brand").Path
           $appIcon = (Resolve-Path "assets/brand/henkan-icon.ico").Path
-          python -m PyInstaller --clean --noconfirm --onedir --windowed --name Henkan `
+          python -m PyInstaller --clean --noconfirm --onedir --windowed --name HenkanFE `
             --icon "$appIcon" `
-            --contents-directory _henkan_gui_runtime `
+            --contents-directory _henkan_fe_gui_runtime `
             --distpath dist/gui --workpath build/gui --specpath build/spec-gui `
             --collect-all customtkinter --collect-all numpy `
             --add-data "$idTables;v3v2" `
@@ -65,8 +65,8 @@ jobs:
         run: |
           $idTables = (Resolve-Path "v3v2/idtables.json").Path
           $v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
-          python -m PyInstaller --clean --noconfirm --onedir --console --name HenkanWorker `
-            --contents-directory _henkan_worker_runtime `
+          python -m PyInstaller --clean --noconfirm --onedir --console --name HenkanFEWorker `
+            --contents-directory _henkan_fe_worker_runtime `
             --distpath dist/worker --workpath build/worker --specpath build/spec-worker `
             --collect-all numpy --collect-all pywinauto `
             --hidden-import pythoncom --hidden-import pywintypes --hidden-import win32timezone `
@@ -118,77 +118,77 @@ jobs:
             }
           }
 
-          $guiLog = Join-Path $env:RUNNER_TEMP "henkan-gui-self-test.log"
+          $guiLog = Join-Path $env:RUNNER_TEMP "henkan-fe-gui-self-test.log"
           Remove-Item $guiLog -Force -ErrorAction SilentlyContinue
-          $env:HENKAN_SELF_TEST_LOG = $guiLog
+          $env:HENKAN_FE_SELF_TEST_LOG = $guiLog
           try {
-            Invoke-HenkanSmokeTest -FilePath "dist/gui/Henkan/Henkan.exe" `
-              -Arguments @("--self-test") -Name "Henkan GUI bundle self-test"
+            Invoke-HenkanSmokeTest -FilePath "dist/gui/HenkanFE/HenkanFE.exe" `
+              -Arguments @("--self-test") -Name "Henkan FE GUI bundle self-test"
 
             if (!(Test-Path $guiLog -PathType Leaf)) {
-              throw "Henkan GUI self-test exited successfully but did not create its diagnostic log."
+              throw "Henkan FE GUI self-test exited successfully but did not create its diagnostic log."
             }
             $guiLogText = Get-Content $guiLog -Raw
             Write-Host $guiLogText
             if ($guiLogText -notmatch 'SELF-TEST PASSED') {
-              throw "Henkan GUI self-test did not report success. Diagnostic log: $guiLog"
+              throw "Henkan FE GUI self-test did not report success. Diagnostic log: $guiLog"
             }
           }
           finally {
-            Remove-Item Env:HENKAN_SELF_TEST_LOG -ErrorAction SilentlyContinue
+            Remove-Item Env:HENKAN_FE_SELF_TEST_LOG -ErrorAction SilentlyContinue
           }
 
-          Invoke-HenkanSmokeTest -FilePath "dist/worker/HenkanWorker/HenkanWorker.exe" `
-            -Arguments @("--cli", "--version") -Name "HenkanWorker CLI self-test"
-          Invoke-HenkanSmokeTest -FilePath "dist/worker/HenkanWorker/HenkanWorker.exe" `
-            -Arguments @("--qa") -Name "HenkanWorker Audio QA self-test"
+          Invoke-HenkanSmokeTest -FilePath "dist/worker/HenkanFEWorker/HenkanFEWorker.exe" `
+            -Arguments @("--cli", "--version") -Name "Henkan FE worker CLI self-test"
+          Invoke-HenkanSmokeTest -FilePath "dist/worker/HenkanFEWorker/HenkanFEWorker.exe" `
+            -Arguments @("--qa") -Name "Henkan FE worker Audio QA self-test"
 
       - name: Assemble Windows application ZIP
         shell: pwsh
         run: |
-          $release = "dist/Henkan-Windows"
-          $guiBundle = "dist/gui/Henkan"
-          $workerBundle = "dist/worker/HenkanWorker"
+          $release = "dist/Henkan-FE-Windows"
+          $guiBundle = "dist/gui/HenkanFE"
+          $workerBundle = "dist/worker/HenkanFEWorker"
           New-Item -ItemType Directory -Force -Path $release | Out-Null
 
           # Both onedir executables live at the ZIP root so the GUI's existing
-          # APP_DIR/HenkanWorker.exe lookup continues to work. Keep each build's
+          # APP_DIR/HenkanFEWorker.exe lookup continues to work. Keep each build's
           # support files in a uniquely named runtime directory to avoid collisions.
-          Copy-Item "$guiBundle/Henkan.exe" $release
-          Copy-Item "$workerBundle/HenkanWorker.exe" $release
-          Copy-Item "$guiBundle/_henkan_gui_runtime" "$release/_henkan_gui_runtime" -Recurse
-          Copy-Item "$workerBundle/_henkan_worker_runtime" "$release/_henkan_worker_runtime" -Recurse
+          Copy-Item "$guiBundle/HenkanFE.exe" $release
+          Copy-Item "$workerBundle/HenkanFEWorker.exe" $release
+          Copy-Item "$guiBundle/_henkan_fe_gui_runtime" "$release/_henkan_fe_gui_runtime" -Recurse
+          Copy-Item "$workerBundle/_henkan_fe_worker_runtime" "$release/_henkan_fe_worker_runtime" -Recurse
           Copy-Item "README.md" $release
           Copy-Item "LICENSE" $release
           Copy-Item "BUILDING_WINDOWS.md" $release
           Copy-Item "SYSTEM_REQUIREMENTS.md" $release
           @'
-          HENKAN — WINDOWS BUILD
+          HENKAN FE — WINDOWS BUILD
 
-          Launch Henkan.exe. Keep HenkanWorker.exe in the same folder; it is used internally
+          Launch HenkanFE.exe. Keep HenkanFEWorker.exe in the same folder; it is used internally
           for conversion, validation, DBTool automation, packaging and Audio QA. Keep both
-          _henkan_gui_runtime and _henkan_worker_runtime folders beside the executables.
-          Read SYSTEM_REQUIREMENTS.md or open PC Requirements in Henkan to check your PC.
+          _henkan_fe_gui_runtime and _henkan_fe_worker_runtime folders beside the executables.
+          Read SYSTEM_REQUIREMENTS.md or open PC Requirements in Henkan FE to check your PC.
 
           VocaloidDBTool3.exe and its phonetic dictionaries are external prerequisites.
-          They are not bundled or downloaded by this build. Configure their paths in Henkan.
+          They are not bundled or downloaded by this build. Configure their paths in Henkan FE.
           '@ | Set-Content -Encoding UTF8 "$release/START-HERE.txt"
           $requiredPackagePaths = @(
-            "$release/Henkan.exe",
-            "$release/HenkanWorker.exe",
-            "$release/_henkan_gui_runtime",
-            "$release/_henkan_worker_runtime"
+            "$release/HenkanFE.exe",
+            "$release/HenkanFEWorker.exe",
+            "$release/_henkan_fe_gui_runtime",
+            "$release/_henkan_fe_worker_runtime"
           )
           $missingPackagePaths = @($requiredPackagePaths | Where-Object { !(Test-Path $_) })
           if ($missingPackagePaths.Count -gt 0) {
             throw "The Windows package is incomplete: $($missingPackagePaths -join ', ')"
           }
-          Compress-Archive -Path "$release/*" -DestinationPath "dist/Henkan-Windows.zip" -Force
+          Compress-Archive -Path "$release/*" -DestinationPath "dist/Henkan-FE-Windows.zip" -Force
 
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: Henkan-Windows
-          path: dist/Henkan-Windows.zip
+          name: Henkan-FE-Windows
+          path: dist/Henkan-FE-Windows.zip
           if-no-files-found: error
           retention-days: 30
