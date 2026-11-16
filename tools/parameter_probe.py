@@ -1,4 +1,4 @@
-"""Generate paired baseline/parameter-test VSQX4 files for a Henkan dev-kit voice.
+"""Generate paired baseline/parameter-test VSQX4 files for a Henkan FE dev-kit voice.
 
 Usage:
     python tools/parameter_probe.py <ProgramChange> <output-folder> [--editor-dir <copy>] [--song test]
