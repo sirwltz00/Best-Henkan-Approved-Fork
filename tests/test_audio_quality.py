@@ -34,10 +34,11 @@ class WavIO(unittest.TestCase):
         pcm = np.array([0, 1 << 30, -(1 << 30), (1 << 31) - 256], dtype='<i4')
         guid_pcm = b'\x01\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xaa\x00\x38\x9b\x71'
         fmt = struct.pack('<HHIIHHHHI', 0xFFFE, 1, sr, sr * 4, 4, 32, 22, 24, 0) + guid_pcm
-        with tempfile.NamedTemporaryFile(suffix='.wav') as f:
-            f.write(make_wave(fmt, pcm.tobytes()))
-            f.flush()
-            got, got_sr = audio.read_wav(f.name)
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, 'extensible.wav')
+            with open(path, 'wb') as f:
+                f.write(make_wave(fmt, pcm.tobytes()))
+            got, got_sr = audio.read_wav(path)
         self.assertEqual(got_sr, sr)
         np.testing.assert_allclose(got, [0.0, 0.5, -0.5, (2**31 - 256) / 2**31], atol=2e-7)
 
@@ -45,20 +46,22 @@ class WavIO(unittest.TestCase):
         x = sine(440, seconds=0.2)
         interleaved = np.column_stack((x * 32767, -x * 32767)).astype('<i2')
         fmt = struct.pack('<HHIIHH', 1, 2, SR, SR * 4, 4, 16)
-        with tempfile.NamedTemporaryFile(suffix='.wav') as f:
-            f.write(make_wave(fmt, interleaved.tobytes()))
-            f.flush()
-            got, sr = audio.read_wav(f.name)
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, 'antiphase.wav')
+            with open(path, 'wb') as f:
+                f.write(make_wave(fmt, interleaved.tobytes()))
+            got, sr = audio.read_wav(path)
         self.assertEqual(sr, SR)
         self.assertGreater(audio.rms_db(got), -12.0)
         self.assertGreater(np.max(np.abs(got)), 0.3)
 
     def test_truncated_riff_is_rejected(self):
-        with tempfile.NamedTemporaryFile(suffix='.wav') as f:
-            f.write(b'RIFF\x80\x00\x00\x00WAVE')
-            f.flush()
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, 'truncated.wav')
+            with open(path, 'wb') as f:
+                f.write(b'RIFF\x80\x00\x00\x00WAVE')
             with self.assertRaisesRegex(ValueError, 'truncated'):
-                audio.read_wav(f.name)
+                audio.read_wav(path)
 
 
 class Resampling(unittest.TestCase):
