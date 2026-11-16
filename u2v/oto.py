@@ -289,8 +289,14 @@ def read_bank(bank_root, extra_suffixes=(), diagnostics=None):
                 # UTAU permits relative paths and both slash styles in oto.ini.
                 rel_wav = wav.replace('\\', os.sep).replace('/', os.sep)
                 path = rel_wav if os.path.isabs(rel_wav) else os.path.join(dirpath, rel_wav)
-                if not os.path.isfile(path) and not os.path.isabs(rel_wav):
-                    path = _case_insensitive_relative_path(dirpath, rel_wav)
+                if not os.path.isabs(rel_wav):
+                    # Resolve using directory entries even on Windows. The native
+                    # filesystem accepts mismatched case, but retaining the spelling
+                    # from oto.ini loses the actual on-disk path casing and makes
+                    # diagnostics/tests/platform-independent path handling unreliable.
+                    resolved = _case_insensitive_relative_path(dirpath, rel_wav)
+                    if resolved is not None:
+                        path = resolved
                 if not path or not os.path.isfile(path):
                     diagnostics.append('%s:%d: WAV file not found: %s' % (oto_path, line_no, wav))
                     continue
