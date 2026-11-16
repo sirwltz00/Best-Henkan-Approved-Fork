@@ -114,3 +114,11 @@ voicebank recordings with generated speech.
 
 - Fixed the GUI and worker PyInstaller commands to resolve `v3v2/idtables.json` and `v3v2/v2_japanese_units.json` to absolute source paths before packaging. With custom `--specpath` directories under `build/`, PyInstaller was incorrectly looking for relative data inputs beneath `build/spec-gui/` or `build/spec-worker/`.
 - Updated `BUILDING_WINDOWS.md` to use the same absolute-path approach for local PowerShell builds.
+
+
+## Winlator-friendly Windows packaging layout
+
+- Switched the GUI and worker PyInstaller commands from `--onefile` to `--onedir`, avoiding the one-file bootloader's temporary `_MEI...` extraction step.
+- Kept `Henkan.exe` and `HenkanWorker.exe` at the root of the release ZIP so the GUI's existing same-folder worker lookup remains valid.
+- Stored each executable's bundled files in separate `_henkan_gui_runtime/` and `_henkan_worker_runtime/` folders to prevent file collisions. Updated CI smoke-test paths, local build instructions and user-facing extraction guidance.
+- A Windows CI run is still needed to validate the resulting frozen executables and test behavior under Winlator.

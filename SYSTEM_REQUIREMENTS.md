@@ -31,7 +31,7 @@ The storage figures are free working-space recommendations, not the size of the 
 - `Henkan.exe` — the windowed application users launch.
 - `HenkanWorker.exe` — the helper Henkan starts internally for conversion, validation, DB building, packaging, and Audio QA.
 
-Both files must remain in the same extracted folder. Do not launch the worker directly. If Henkan opens but tasks cannot start, re-extract the complete ZIP and check whether security software quarantined `HenkanWorker.exe`.
+Both executables must remain in the same extracted folder, beside `_henkan_gui_runtime/` and `_henkan_worker_runtime/`. These two runtime folders contain the supporting libraries and data for the onedir builds; do not move or delete them. Do not launch the worker directly. If Henkan opens but tasks cannot start, re-extract the complete ZIP and check whether security software quarantined a required file or folder.
 
 ### Required only for building a singer DB
 
@@ -52,14 +52,14 @@ The DBTool is a legacy Windows program. If it fails with Windows side-by-side co
 
 Henkan reads the current Windows/platform identity, process architecture, logical CPU count, installed RAM, free space on the system temporary-file drive, display resolution, and whether the worker helper exists. It separately reports whether the configured DBTool and dictionary paths exist.
 
-The report is a diagnostic aid, not a benchmark. It does not test the actual performance of a CPU, validate every audio driver, inspect the licensing status of external components, or guarantee that a particular DBTool build can be automated. Hardware warnings do not prevent Henkan from opening.
+The report is a diagnostic aid, not a benchmark. It also checks that the onedir worker runtime folder is present beside `HenkanWorker.exe`. It does not test the actual performance of a CPU, validate every audio driver, inspect the licensing status of external components, or guarantee that a particular DBTool build can be automated. Hardware warnings do not prevent Henkan from opening.
 
 ## Common reasons the application may not work
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
 | Windows says the app cannot run on this PC | Wrong OS architecture / unsupported platform | Use 64-bit Windows 10/11 on an Intel/AMD x64 PC. |
-| Henkan opens, but starting a task fails | `HenkanWorker.exe` is missing or blocked | Keep both EXEs together; re-extract the full ZIP and inspect security-software quarantine. |
+| Henkan opens, but starting a task fails | `HenkanWorker.exe` or its runtime folder is missing or blocked | Keep both EXEs and both runtime folders together; re-extract the full ZIP and inspect security-software quarantine. |
 | Conversion or DB build says dictionary is missing | No language-matched phonetic dictionary configured | Select the appropriate Japanese or English dictionary in Henkan. |
 | Build singer DB cannot start | DBTool missing, path invalid, or external devkit not configured | Configure the separately supplied `VocaloidDBTool3.exe`; confirm the dictionary path too. |
 | DBTool shows side-by-side error 14001 | Legacy DBTool runtime dependency missing | Check for Microsoft Visual C++ 2008 Redistributable (x86), then restart Windows. |

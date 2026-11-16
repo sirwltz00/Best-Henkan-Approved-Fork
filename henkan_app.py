@@ -47,7 +47,7 @@ def _self_test():
             "Frozen GUI imports: customtkinter, numpy, gui, u2v, "
             "v3v2.convert, v3v2.install\n"
             "Bundled V3/V2 JSON resources: present\n"
-            "PyInstaller extraction root: " + root
+            "PyInstaller runtime directory: " + root
         )
         return 0
     except Exception:

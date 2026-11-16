@@ -38,12 +38,12 @@ click "Add Articulations" 790 times with your own human finger.
 ## 🚀 Quick start (the "I just want it to sing" path)
 
 1. Download the **Henkan-Windows** build from the repository's latest GitHub Actions run (or its Releases page, if the maintainer publishes one) and unzip it.
-2. Keep **`Henkan.exe`** and **`HenkanWorker.exe`** together in the same folder.
+2. Keep **`Henkan.exe`** and **`HenkanWorker.exe`** together in the same folder, with the `_henkan_gui_runtime` and `_henkan_worker_runtime` folders beside them. Do not move or delete those runtime folders.
 3. Launch **`Henkan.exe`**. No Python installation is needed for the packaged Windows build.
 4. On the **Quick Start** page, choose your UTAU bank and check that the prerequisites are ready. Select the DBTool executable and its phonetic dictionary if Henkan does not detect them automatically, then press **▶ Make my voicebank**.
 5. **Pack & Install** → install the resulting bank in your VOCALOID editor.
 
-The DBTool is a separate Windows prerequisite. It is not bundled in the Henkan build; use only a copy you are authorized to use. Do not delete `HenkanWorker.exe`: Henkan launches it internally for conversion, validation, DB building, packaging and Audio QA.
+The DBTool is a separate Windows prerequisite. It is not bundled in the Henkan build; use only a copy you are authorized to use. Do not delete `HenkanWorker.exe` or either runtime folder: Henkan launches the worker internally for conversion, validation, DB building, packaging and Audio QA, and each executable needs its runtime folder.
 
 Something red in step 2? Its **Find it…** / **Install** button fixes it. Something failed? Henkan tells you
 what went wrong and what to do, in words.
@@ -365,7 +365,7 @@ Henkan analyses audio on the CPU. It does not require CUDA, a discrete graphics 
 
 ### Separate software prerequisites
 
-- **`Henkan.exe` and `HenkanWorker.exe`** must remain together in the same extracted folder. The worker is required for conversion, validation, DB building, packaging and Audio QA.
+- **`Henkan.exe` and `HenkanWorker.exe`** must remain together in the same extracted folder, with `_henkan_gui_runtime/` and `_henkan_worker_runtime/` beside them. The runtime folders are required by the onedir builds; the worker is required for conversion, validation, DB building, packaging and Audio QA.
 - **`VocaloidDBTool3.exe` and the language-matched phonetic dictionary** are separate prerequisites for building a singer DB. They are not included in the Henkan package; configure files you are authorized to use.
 - If the legacy DBTool shows Windows side-by-side error **14001**, it may need the **Microsoft Visual C++ 2008 Redistributable (x86)**, even on 64-bit Windows.
 - **VOCALOID editor** is optional for conversion and DB creation, but needed for installing into an editor and auditioning the result.
@@ -467,7 +467,7 @@ next to it as `<folder>__orig`.
   Fixed in the next version. The output folder had another folder inside it (often the UTAU bank itself), and
   the build tried to copy that folder like a file. Running as administrator doesn't help. Until you update,
   move that folder out of the output folder.
-- **Henkan opens but a task cannot start.** Check that `HenkanWorker.exe` is beside `Henkan.exe`. Re-extract the complete Windows package if it is missing or quarantined by security software.
+- **Henkan opens but a task cannot start.** Check that `HenkanWorker.exe` is beside `Henkan.exe` and that both `_henkan_gui_runtime/` and `_henkan_worker_runtime/` folders are still beside them. Re-extract the complete Windows package if any required file or folder is missing or quarantined by security software.
 - **"The application has failed to start because its side-by-side configuration is incorrect"
   (VocaloidDBTool3.exe).** The DBTool needs the **Microsoft Visual C++ 2008 Redistributable, x86** version, even
   on 64-bit Windows. Install it, restart the PC, build again.

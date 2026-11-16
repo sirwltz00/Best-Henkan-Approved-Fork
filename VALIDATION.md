@@ -1,13 +1,11 @@
 # Validation record
 
 - Automated command: `python -m pytest -q`
-- Latest result for this source revision: **224 passed; 4 skipped; 6 subtests passed**.
+- Latest result for this source revision: **225 passed; 4 skipped; 6 subtests passed**.
 - Syntax check: `python -m py_compile gui.py system_requirements.py henkan.py henkan_app.py henkan_worker.py` completed successfully.
 - Full Python source compile check: `python -m compileall -q .` completed successfully.
-- Windows packaging workflow added at `.github/workflows/build.yml`. PyInstaller's `--add-data` sources are resolved to absolute repository paths so custom `--specpath` directories cannot redirect lookups into `build/spec-gui` or `build/spec-worker`. The packaged release includes `SYSTEM_REQUIREMENTS.md`; the CustomTkinter GUI adds a live PC Requirements page that checks OS/architecture, CPU count, RAM, temporary-drive free space, display resolution and worker availability. It builds a windowed `Henkan.exe`
-  and a console `HenkanWorker.exe`, then smoke-tests GUI imports, bundled JSON resources, CLI dispatch
-  and Audio QA dispatch on `windows-latest` before uploading the application ZIP. Source-level tests also cover the worker dispatcher modes.
-- Frozen `.exe` files were **not built in this Linux editing environment**. The absolute-path correction addresses the reported missing `idtables.json` build error, but the Windows GitHub Actions run is still required to verify the PyInstaller build and executable smoke tests.
+- Windows packaging workflow at `.github/workflows/build.yml` now builds both applications with PyInstaller `--onedir`. Their executables are assembled at the release ZIP root, with separate `_henkan_gui_runtime/` and `_henkan_worker_runtime/` support folders so the GUI's same-folder worker lookup still works without merging their bundled files. PyInstaller's `--add-data` sources remain absolute repository paths. CI smoke-tests GUI imports, bundled JSON resources, CLI dispatch and Audio QA dispatch on `windows-latest` before uploading the application ZIP. Source-level tests cover the worker dispatcher and the frozen worker runtime-folder diagnostic.
+- Frozen Windows `.exe` files were **not built in this Linux editing environment**. The Windows GitHub Actions run is still required to verify the onedir PyInstaller builds and executable smoke tests; Winlator compatibility also needs to be checked on the target setup.
 - Windows DBTool / VOCALOID4 Editor integration remains dependent on the user's independently supplied
   DBTool and dictionary installation and must be checked on Windows.
 

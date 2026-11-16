@@ -97,6 +97,9 @@ def collect_system_info(app_dir: str | None = None, screen_size: tuple[int, int]
     bits = struct.calcsize('P') * 8
     worker_name = 'HenkanWorker.exe' if frozen else 'henkan_worker.py'
     worker_path = os.path.join(app_dir, worker_name)
+    worker_runtime_path = (os.path.join(app_dir, '_henkan_worker_runtime') if frozen else None)
+    worker_file_exists = os.path.isfile(worker_path)
+    worker_runtime_exists = (os.path.isdir(worker_runtime_path) if worker_runtime_path else True)
 
     return {
         'os_name': _windows_description(),
@@ -114,7 +117,9 @@ def collect_system_info(app_dir: str | None = None, screen_size: tuple[int, int]
         'screen_width': screen_size[0] if screen_size else None,
         'screen_height': screen_size[1] if screen_size else None,
         'worker_path': worker_path,
-        'worker_exists': os.path.isfile(worker_path),
+        'worker_runtime_path': worker_runtime_path,
+        'worker_exists': worker_file_exists and worker_runtime_exists,
+        'worker_runtime_exists': worker_runtime_exists,
         'frozen': bool(frozen),
     }
 
@@ -191,12 +196,13 @@ def evaluate_system(info: dict[str, Any]) -> list[dict[str, str]]:
     rows.append({
         'key': 'worker', 'name': 'Henkan worker helper',
         'detected': ('Found: %s' % os.path.basename(info.get('worker_path', ''))
-                     if info.get('worker_exists') else 'Missing: %s' % os.path.basename(info.get('worker_path', ''))),
-        'minimum': 'Keep HenkanWorker.exe beside Henkan.exe',
+                     if info.get('worker_exists') else
+                     'Missing or incomplete: %s' % os.path.basename(info.get('worker_path', ''))),
+        'minimum': 'Keep HenkanWorker.exe and _henkan_worker_runtime beside Henkan.exe',
         'recommended': 'Extract the complete Henkan-Windows.zip',
         'status': 'good' if info.get('worker_exists') else 'bad',
-        'explanation': ('Henkan uses the worker to run conversion and build tasks. Re-extract the complete ZIP '
-                        'if it is missing or was quarantined.'),
+        'explanation': ('Henkan uses the worker and its runtime folder to run conversion and build tasks. '
+                        'Re-extract the complete ZIP if either is missing or was quarantined.'),
     })
     return rows
 

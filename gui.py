@@ -23,8 +23,8 @@ import customtkinter as ctk
 
 FROZEN = bool(getattr(sys, 'frozen', False))
 APP_DIR = os.path.dirname(os.path.abspath(sys.executable)) if FROZEN else os.path.dirname(os.path.abspath(__file__))
-# PyInstaller extracts its Python modules into _MEIPASS. Keep source/runtime resources separate
-# from the folder where the user installed Henkan.exe and HenkanWorker.exe.
+# PyInstaller keeps bundled modules and resources in _MEIPASS. Keep that runtime
+# directory separate from the folder containing Henkan.exe and HenkanWorker.exe.
 ROOT = getattr(sys, '_MEIPASS', APP_DIR) if FROZEN else APP_DIR
 
 
@@ -1967,10 +1967,12 @@ class App(ctk.CTk):
     def _py(self, script, *args):
         if FROZEN:
             worker = os.path.join(APP_DIR, 'HenkanWorker.exe')
-            if not os.path.isfile(worker):
-                messagebox.showerror('Henkan worker missing',
-                                     'HenkanWorker.exe must be in the same folder as Henkan.exe.\n\n'
-                                     'Re-extract the complete Henkan-Windows package.')
+            worker_runtime = os.path.join(APP_DIR, '_henkan_worker_runtime')
+            if not os.path.isfile(worker) or not os.path.isdir(worker_runtime):
+                messagebox.showerror(
+                    'Henkan worker files missing',
+                    'HenkanWorker.exe and its _henkan_worker_runtime folder must be beside Henkan.exe.\n\n'
+                    'Re-extract the complete Henkan-Windows package.')
                 return []
             mode = '--qa' if os.path.basename(script).lower() == 'qa.py' else '--cli'
             return [worker, mode] + [str(a) for a in args]
