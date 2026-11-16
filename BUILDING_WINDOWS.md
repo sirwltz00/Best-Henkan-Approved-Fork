@@ -16,11 +16,17 @@ python -m pip install -r requirements.txt
 python -m pip install pytest pyinstaller
 python -m pytest -q
 
+# Resolve data files before invoking PyInstaller. With --specpath set to a
+# build subdirectory, relative --add-data paths may be resolved from that
+# generated spec directory instead of the repository root.
+$idTables = (Resolve-Path "v3v2/idtables.json").Path
+$v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
+
 python -m PyInstaller --clean --noconfirm --onefile --windowed --name Henkan `
   --distpath dist/gui --workpath build/gui --specpath build/spec-gui `
   --collect-all customtkinter --collect-all numpy `
-  --add-data "v3v2/idtables.json;v3v2" `
-  --add-data "v3v2/v2_japanese_units.json;v3v2" henkan_app.py
+  --add-data "$idTables;v3v2" `
+  --add-data "$v2JapaneseUnits;v3v2" henkan_app.py
 
 python -m PyInstaller --clean --noconfirm --onefile --console --name HenkanWorker `
   --distpath dist/worker --workpath build/worker --specpath build/spec-worker `
@@ -28,8 +34,8 @@ python -m PyInstaller --clean --noconfirm --onefile --console --name HenkanWorke
   --hidden-import pythoncom --hidden-import pywintypes --hidden-import win32timezone `
   --hidden-import win32api --hidden-import win32con --hidden-import win32gui `
   --hidden-import win32process --hidden-import win32event --hidden-import win32com.client `
-  --add-data "v3v2/idtables.json;v3v2" `
-  --add-data "v3v2/v2_japanese_units.json;v3v2" henkan_worker.py
+  --add-data "$idTables;v3v2" `
+  --add-data "$v2JapaneseUnits;v3v2" henkan_worker.py
 ```
 
 The GitHub Actions workflow runs import/data smoke tests against both frozen executables. Copy `dist/gui/Henkan.exe` and `dist/worker/HenkanWorker.exe` into one folder before running the app. Both executables are required.

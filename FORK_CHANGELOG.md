@@ -108,3 +108,9 @@ voicebank recordings with generated speech.
 - Added `SYSTEM_REQUIREMENTS.md`, updated the README and Windows build guide, and included the requirements document in the GitHub Actions release ZIP.
 - Added unit tests for minimum-spec PCs, unsupported OS/architecture, low RAM/disk, display constraints and a missing worker executable.
 - The report is advisory and does not block startup; the legacy DBTool / actual VOCALOID editor still need separate compatibility verification.
+
+
+## Windows PyInstaller data-file resolution
+
+- Fixed the GUI and worker PyInstaller commands to resolve `v3v2/idtables.json` and `v3v2/v2_japanese_units.json` to absolute source paths before packaging. With custom `--specpath` directories under `build/`, PyInstaller was incorrectly looking for relative data inputs beneath `build/spec-gui/` or `build/spec-worker/`.
+- Updated `BUILDING_WINDOWS.md` to use the same absolute-path approach for local PowerShell builds.
