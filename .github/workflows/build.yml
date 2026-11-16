@@ -45,12 +45,16 @@ jobs:
           # build/spec-worker because those custom spec directories are configured below.
           $idTables = (Resolve-Path "v3v2/idtables.json").Path
           $v2JapaneseUnits = (Resolve-Path "v3v2/v2_japanese_units.json").Path
+          $brandAssets = (Resolve-Path "assets/brand").Path
+          $appIcon = (Resolve-Path "assets/brand/henkan-icon.ico").Path
           python -m PyInstaller --clean --noconfirm --onedir --windowed --name Henkan `
+            --icon "$appIcon" `
             --contents-directory _henkan_gui_runtime `
             --distpath dist/gui --workpath build/gui --specpath build/spec-gui `
             --collect-all customtkinter --collect-all numpy `
             --add-data "$idTables;v3v2" `
             --add-data "$v2JapaneseUnits;v3v2" `
+            --add-data "$brandAssets;assets/brand" `
             henkan_app.py
           if ($LASTEXITCODE -ne 0) {
             throw "PyInstaller GUI build failed ($LASTEXITCODE)."
