@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 560" width="1800" height="560" role="img" aria-labelledby="title desc">
-  <title id="title">Henkan voicebank converter — dark version</title>
-  <desc id="desc">Henkan logo for dark backgrounds, with waveform-to-keyboard symbol.</desc>
+  <title id="title">Henkan FE Fan Edition voicebank converter — dark version</title>
+  <desc id="desc">Henkan FE logo adaptation for dark backgrounds, with waveform-to-keyboard symbol.</desc>
   <defs><linearGradient id="pink" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f58aae"/><stop offset="1" stop-color="#d6336c"/></linearGradient><clipPath id="keyClip"><rect x="646" y="366" width="250" height="292" rx="22"/></clipPath></defs>
   <g transform="translate(60,17) scale(.46)">
     <g fill="url(#pink)"><rect x="132" y="448" width="56" height="128" rx="28"/><rect x="218" y="386" width="56" height="252" rx="28"/><rect x="304" y="310" width="56" height="404" rx="28"/><rect x="390" y="405" width="56" height="214" rx="28"/></g>
     <path d="M466 512H580" fill="none" stroke="#f7f1f4" stroke-width="34" stroke-linecap="round"/><path d="M548 458L608 512L548 566" fill="none" stroke="#f7f1f4" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
     <rect x="628" y="337" width="286" height="350" rx="38" fill="#f7f1f4"/><g clip-path="url(#keyClip)"><rect x="646" y="366" width="250" height="292" fill="#fffafd"/><path d="M729 366V658M812 366V658" stroke="#c9c1c9" stroke-width="7"/><path d="M696 366V508H746V366M779 366V508H829V366" fill="#263244"/><path d="M646 658H896" stroke="#d9d0d7" stroke-width="7"/></g><rect x="628" y="337" width="286" height="350" rx="38" fill="none" stroke="#d9d0d7" stroke-width="6"/><circle cx="856" cy="728" r="12" fill="#d6336c"/>
   </g>
-  <text x="500" y="288" fill="#f7f1f4" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="190" font-weight="760" letter-spacing="-8">Henkan</text>
-  <text x="512" y="370" fill="#f58aae" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="36" font-weight="700" letter-spacing="9">VOICEBANK CONVERTER</text>
+  <text x="500" y="288" fill="#f7f1f4" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="178" font-weight="760" letter-spacing="-7">Henkan FE</text>
+  <text x="512" y="370" fill="#f58aae" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="5">FAN EDITION  ·  VOICEBANK CONVERTER</text>
   <text x="512" y="444" fill="#aab4c4" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="34" font-weight="500" letter-spacing="2">UTAU  →  VOCALOID</text>
 </svg>

@@ -1,10 +1,10 @@
-HENKAN BRAND KIT
+HENKAN FE BRAND KIT
 ================
 
 Concept
 -------
 The mark reads from left to right: recorded audio waveform -> conversion arrow ->
-piano keyboard. It represents Henkan's core job: converting recorded UTAU voicebank
+piano keyboard. It represents Henkan FE's core job: converting recorded UTAU voicebank
 material into a VOCALOID singer database.
 
 Files
@@ -34,3 +34,8 @@ Slate:           #647084
 All SVGs are editable vector artwork. They use live system font fallbacks for the
 wordmark rather than embedding a proprietary font. The app icon is designed to
 remain recognizable without text at small sizes.
+
+Product identity
+----------------
+Henkan FE means Henkan Fan Edition. The icon is inherited from the original Henkan identity;
+the editable light/dark wordmarks identify this independently maintained fan edition.
