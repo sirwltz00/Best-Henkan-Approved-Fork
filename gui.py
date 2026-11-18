@@ -640,16 +640,26 @@ class NavigationPages(ctk.CTkFrame):
 
 
 class ScrollFrame(ttk.Frame):
+<<<<<<< HEAD
     """A frame whose .body scrolls vertically when its content exceeds the viewport."""
 
     def __init__(self, parent):
         super().__init__(parent)
         self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=APP_BG)
+=======
+    """A frame whose .body scrolls vertically (wheel included) once it is taller than the space it gets."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        bg = APP_BG
+        self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=bg)
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
         self.vsb = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
         self.canvas.pack(side='left', fill='both', expand=True)
         self.body = tk.Frame(self.canvas, background=APP_BG, borderwidth=0, highlightthickness=0)
         self._win = self.canvas.create_window((0, 0), window=self.body, anchor='nw')
+<<<<<<< HEAD
         self._wheel_tag = 'HenkanScrollWheel_%x' % id(self)
         self.canvas.bind_class(self._wheel_tag, '<MouseWheel>', self._wheel)
         self.canvas.bind_class(self._wheel_tag, '<Button-4>', self._wheel)
@@ -677,6 +687,17 @@ class ScrollFrame(ttk.Frame):
         self.canvas.configure(scrollregion=bbox or (0, 0, width, 0))
         content_height = (bbox[3] - bbox[1]) if bbox else 0
         if content_height > self.canvas.winfo_height() + 1:
+=======
+        self.body.bind('<Configure>', self._fit)
+        self.canvas.bind('<Configure>', self._fit)
+        self.bind('<Enter>', lambda _e: self.bind_all('<MouseWheel>', self._wheel))
+        self.bind('<Leave>', lambda _e: self.unbind_all('<MouseWheel>'))
+
+    def _fit(self, _e=None):
+        self.canvas.itemconfigure(self._win, width=self.canvas.winfo_width())
+        self.canvas.configure(scrollregion=(0, 0, self.body.winfo_reqwidth(), self.body.winfo_reqheight()))
+        if self.body.winfo_reqheight() > self.canvas.winfo_height() + 1:
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
             if not self.vsb.winfo_ismapped():
                 self.vsb.pack(side='right', fill='y', before=self.canvas)
         elif self.vsb.winfo_ismapped():
@@ -684,6 +705,7 @@ class ScrollFrame(ttk.Frame):
             self.canvas.yview_moveto(0)
 
     def _wheel(self, ev):
+<<<<<<< HEAD
         if not self.winfo_ismapped() or not self.vsb.winfo_ismapped():
             return None
         if isinstance(ev.widget, (ttk.Combobox, ttk.Spinbox)):
@@ -706,6 +728,10 @@ class ScrollFrame(ttk.Frame):
             units = -int(delta / 120) or (-1 if delta > 0 else 1)
         self.canvas.yview_scroll(units, 'units')
         return 'break'
+=======
+        if self.vsb.winfo_ismapped() and not isinstance(ev.widget, (ttk.Combobox, ttk.Spinbox)):
+            self.canvas.yview_scroll(-1 if ev.delta > 0 else 1, 'units')
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 
 
 class Section(ttk.Frame):
@@ -1672,11 +1698,15 @@ class App(ctk.CTk):
         return f
 
     def _tab_pack(self, nb):
+<<<<<<< HEAD
         # Pack & Install can be taller than the page area when the activity console is open
         # or the window is short. Put the whole page inside the same scroll container as Quick Start.
         sf = ScrollFrame(nb)
         f = ttk.Frame(sf.body, padding=12)
         f.pack(fill='both', expand=True)
+=======
+        f = ttk.Frame(nb, padding=12)
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
         f.columnconfigure(0, weight=1)
         self._intro(f, 'Packs the built DB into a voicebank (.ddb + .ddi + .vvd) and installs it into any '
                        'VOCALOID editor on this PC.')
@@ -1713,7 +1743,11 @@ class App(ctk.CTk):
         self.editor_box['values'] = self._editors()
         ttk.Button(g, text='Browse…', command=self.pick_editor).grid(row=0, column=2, pady=3)
         self._row(g, 1, 'Bank folder', self.v['pkg_dest'], self.pick_pkg_dest)
+<<<<<<< HEAD
         self._hint(g, 2, 'Choose the library root. Each bank is stored in its own CompID subfolder, and that exact folder is registered.', wraplength=720)
+=======
+        self._hint(g, 2, 'Where the .ddb/.ddi/.vvd live (VOCALOID4 banks: VoiceDB\\<name>)')
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
         ttk.Checkbutton(g, text='Dev editor: register a DB_Dev.ini voice slot instead (VOCALOID4FE)',
                         variable=self.v['pkg_devini']).grid(row=3, column=1, sticky='w', padx=6, pady=3)
         b2 = ttk.Frame(g)
@@ -1722,7 +1756,11 @@ class App(ctk.CTk):
         ttk.Button(b2, text='Uninstall', command=self.uninstall).pack(side='left', padx=6)
         self._hint(g, 5, 'Install/Uninstall touch Program Files and the registry, so Windows asks for '
                          'permission (UAC) first.')
+<<<<<<< HEAD
         return sf
+=======
+        return f
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 
     def _tab_v3v2(self, nb):
         """V3→V2 backport: convert VOCALOID3/4 banks (or a Pack & Install .tree) for VOCALOID2."""

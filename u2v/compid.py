@@ -253,6 +253,7 @@ def _reg_open(key_path):
     return winreg.OpenKey(hive, parts[1], 0, winreg.KEY_READ | winreg.KEY_WOW64_32KEY)
 
 
+<<<<<<< HEAD
 V4_REGISTRY_ROOTS = (
     # Current V4 editors store their singer entries under DATABASE41. Keep the older
     # DATABASE roots in the scan too, so existing installations still reserve their IDs.
@@ -263,12 +264,18 @@ V4_REGISTRY_ROOTS = (
 )
 
 
+=======
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 def compids_in_use():
     """Every registered voicebank CompID on this machine (all editor generations)."""
     found = set()
     if sys.platform != 'win32':
         return found
+<<<<<<< HEAD
     for root in V4_REGISTRY_ROOTS + (
+=======
+    for root in ('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE', 'HKLM\\SOFTWARE\\POCALOID4\\DATABASE',
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
                  'HKLM\\SOFTWARE\\VOCALOID2\\DATABASE\\VOICE',
                  'HKLM\\SOFTWARE\\VOCALOID3\\DATABASE\\VOICE2',
                  'HKLM\\SOFTWARE\\VOCALOID3\\DATABASE\\VOICE3'):
@@ -292,7 +299,11 @@ def registered_name(compid):
     if sys.platform != 'win32':
         return None
     import winreg
+<<<<<<< HEAD
     for root in V4_REGISTRY_ROOTS:
+=======
+    for root in ('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE', 'HKLM\\SOFTWARE\\POCALOID4\\DATABASE'):
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
         try:
             with _reg_open(root + '\\' + compid) as k:
                 return winreg.QueryValueEx(k, 'BankName')[0]

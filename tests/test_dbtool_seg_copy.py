@@ -24,6 +24,7 @@ class SegCopy(unittest.TestCase):
             self.assertEqual(sorted(os.listdir(work)), ['a.trans', 'a.wav', 'dictionary.txt'])
 
 
+<<<<<<< HEAD
 class FreshBuildRetry(unittest.TestCase):
     def test_hidden_retry_uses_a_fresh_dictionary_copy(self):
         from unittest.mock import patch
@@ -56,6 +57,8 @@ class FreshBuildRetry(unittest.TestCase):
             self.assertFalse(os.path.exists(calls[1][0]))
 
 
+=======
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 class StartError(unittest.TestCase):
     def test_side_by_side_names_the_runtime(self):
         ex = OSError(14001, 'CreateProcess', 'The application has failed to start because its side-by-side '

@@ -22,11 +22,14 @@ class Pools(unittest.TestCase):
                 self.assertTrue(C.COMPID_RE.match(cid), '%s: %r' % (lang, cid))
                 self.assertTrue(cid.startswith('B'), cid)
 
+<<<<<<< HEAD
     def test_v4_registry_roots_include_current_database41_and_legacy_database(self):
         self.assertIn(r'HKLM\SOFTWARE\VOCALOID4\DATABASE41', C.V4_REGISTRY_ROOTS)
         self.assertIn(r'HKLM\SOFTWARE\POCALOID4\DATABASE41', C.V4_REGISTRY_ROOTS)
         self.assertIn(r'HKLM\SOFTWARE\VOCALOID4\DATABASE', C.V4_REGISTRY_ROOTS)
 
+=======
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
     def test_known_members(self):
         self.assertIn('BX4PEFHANWRW3XEL', C.POOLS['Japanese'])
         self.assertIn('BK8H79SAEHXWSKDB', C.POOLS['Chinese'])

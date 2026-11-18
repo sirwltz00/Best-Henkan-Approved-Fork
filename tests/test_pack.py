@@ -8,7 +8,10 @@ import os
 import sys
 import tempfile
 import unittest
+<<<<<<< HEAD
 from unittest import mock
+=======
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from u2v import pack as P  # noqa: E402
@@ -83,6 +86,7 @@ class Editors(unittest.TestCase):
             with self.assertRaises(P.PackError):
                 P.guess_editor(os.path.join(tmp, 'empty'))
 
+<<<<<<< HEAD
     def test_default_bank_dir_prefers_voice_db_when_present(self):
         ed = {'kind': 'V4', 'root': 'C:\\e', 'label': 'x'}
         with tempfile.TemporaryDirectory() as pf86:
@@ -118,6 +122,19 @@ class Editors(unittest.TestCase):
         self.assertIn('HKLM\\SOFTWARE\\POCALOID4\\DATABASE41\\BKGHF5N5PSTN4KD6', bat)
         self.assertIn(r'/V PATH /T REG_SZ /D "C:\V\Teto\BKGHF5N5PSTN4KD6"', bat)
         self.assertNotIn('VOCALOID4\\DATABASE\\BKGHF5N5PSTN4KD6', bat)
+=======
+    def test_default_bank_dir(self):
+        ed = {'kind': 'V4', 'root': 'C:\\e', 'label': 'x'}
+        self.assertTrue(P.default_bank_dir(ed, 'Teto').endswith(os.path.join('VoiceDB', 'Teto')))
+        ed2 = {'kind': 'V2', 'root': 'C:\\e2', 'label': 'x'}
+        self.assertEqual(P.default_bank_dir(ed2, 'Teto'),
+                         os.path.join('C:\\e2', 'voicedbdir', 'Teto'))
+
+    def test_install_script_v4(self):
+        bat = P.install_script('BKGHF5N5PSTN4KD6', 'Teto', 'C:\\V\\Teto', 'Teto', 'V4')
+        self.assertIn('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE\\BKGHF5N5PSTN4KD6', bat)
+        self.assertIn('HKLM\\SOFTWARE\\POCALOID4\\DATABASE\\BKGHF5N5PSTN4KD6', bat)
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
         self.assertIn('VOCALOID4 Library (Teto)', bat)
         self.assertIn('/reg:32', bat)
         # working commercial layout: files into a CompID subfolder, DBVERSION + real DRP, no KEYS
@@ -130,11 +147,14 @@ class Editors(unittest.TestCase):
         self.assertIn('reg DELETE', un)
         self.assertNotIn('copy /Y', un)
 
+<<<<<<< HEAD
     def test_install_script_v3_registers_the_compid_folder(self):
         bat = P.install_script('BKGHF5N5PSTN4KD6', 'Teto', 'C:\\V3\\voicedbdir', 'Teto', 'V3')
         self.assertIn(r'/V PATH /T REG_SZ /D "C:\V3\voicedbdir\BKGHF5N5PSTN4KD6"', bat)
         self.assertIn(r'HKLM\SOFTWARE\VOCALOID3\DATABASE\VOICE3\BKGHF5N5PSTN4KD6', bat)
 
+=======
+>>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
     def test_dev_slot(self):
         with tempfile.TemporaryDirectory() as tmp:
             ini = os.path.join(tmp, 'DB_Dev.ini')
