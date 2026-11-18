@@ -13,13 +13,8 @@ Pipeline (all verified against real installs on a VOCALOID machine):
 3. **Install**: the package folder ``<CompID>/`` (with same-basename .ddb/.ddi/.vvd) is
    copied to the editor's bank folder and registered, e.g. for VOCALOID4::
 
-<<<<<<< HEAD
        HKLM\\SOFTWARE\\VOCALOID4\\DATABASE41\\<CompID>  (+ the same under POCALOID4)
            PATH=<CompID folder>, DRP=0B0A51, INSTALLED=1, DBVERSION=4, NAME, TIME, BankName
-=======
-       HKLM\\SOFTWARE\\VOCALOID4\\DATABASE\\<CompID>  (+ the same under POCALOID4)
-           PATH, DRP=0B0032, INSTALLED=1, NAME="VOCALOID4 Library (<name>)", TIME, KEYS\\default
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 
    Registry writes + Program Files copies need admin rights, so install/uninstall run
    through generated .bat scripts (same shape as VVD Editor Plus') launched elevated.
@@ -1004,15 +999,9 @@ def check_compid(compid, name=None):
 # editor kinds: reg roots are (files branch, mirror branch or None)
 EDITOR_KINDS = {
     'V4': {'label': 'VOCALOID4 editor', 'exes': ('VOCALOID4.exe',),
-<<<<<<< HEAD
            'reg': ('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE41', 'HKLM\\SOFTWARE\\POCALOID4\\DATABASE41')},
     'V4FE-dev': {'label': 'VOCALOID4FE developer editor', 'exes': ('VoiceLoader.exe', 'VOCALOID4_Dev.exe'),
                  'reg': ('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE41', 'HKLM\\SOFTWARE\\POCALOID4\\DATABASE41')},
-=======
-           'reg': ('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE', 'HKLM\\SOFTWARE\\POCALOID4\\DATABASE')},
-    'V4FE-dev': {'label': 'VOCALOID4FE developer editor', 'exes': ('VoiceLoader.exe', 'VOCALOID4_Dev.exe'),
-                 'reg': ('HKLM\\SOFTWARE\\VOCALOID4\\DATABASE', 'HKLM\\SOFTWARE\\POCALOID4\\DATABASE')},
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
     'V3': {'label': 'VOCALOID3 editor', 'exes': ('VOCALOID3.exe',),
            'reg': ('HKLM\\SOFTWARE\\VOCALOID3\\DATABASE\\VOICE3', None)},
     'V2': {'label': 'VOCALOID2 editor', 'exes': ('VOCALOID2.exe', 'SingerEditor2.exe'),
@@ -1063,7 +1052,6 @@ def find_editors():
     return fe + [e for e in found if e not in fe]
 
 
-<<<<<<< HEAD
 def v4_bank_dir_candidates():
     """Known VOCALOID4 library roots, ordered by current Henkan FE preference.
 
@@ -1093,14 +1081,6 @@ def default_bank_dir(editor, name):
                 return candidate
         return candidates[0]
     return os.path.join(editor['root'], 'voicedbdir')
-=======
-def default_bank_dir(editor, name):
-    """Where a new bank folder goes for this editor (real V4 banks live in VoiceDB\\<name>)."""
-    pf86 = os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)')
-    if editor['kind'] in ('V4', 'V4FE-dev'):
-        return os.path.join(pf86, 'VoiceDB', name)
-    return os.path.join(editor['root'], 'voicedbdir', name)
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
 
 # ------------------------------------------------------------------ packaging and install
 
@@ -1161,24 +1141,16 @@ def install_script(compid, name, dest, files_base, kind, db_version='4', uninsta
         slot_lines = ''
     elif kind == 'V3':
         branches = (EDITOR_KINDS['V3']['reg'][0],)
-<<<<<<< HEAD
         voice_folder = dest.rstrip('\\/') + '\\' + compid
         values = [('PATH', 'REG_SZ', voice_folder), ('NAME', 'REG_SZ', 'VOCALOID3 Library (%s)' % name),
-=======
-        values = [('PATH', 'REG_SZ', dest), ('NAME', 'REG_SZ', 'VOCALOID3 Library (%s)' % name),
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
                   ('TIME', 'REG_SZ', 'BHMN74F9ED86FKAB'), ('INSTALLED', 'REG_DWORD', '1'),
                   ('DRP', 'REG_SZ', '0B0032'), ('KEYS\\default', 'REG_SZ', '1145141919810')]
         slot_lines = ''
     else:
         # mirror a working commercial install (MIKU_V4X): DBVERSION dword, DRP 0B0A51, no KEYS
         branches = EDITOR_KINDS['V4']['reg']
-<<<<<<< HEAD
         voice_folder = dest.rstrip('\\/') + '\\' + compid
         values = [('PATH', 'REG_SZ', voice_folder), ('DRP', 'REG_SZ', '0B0A51'),
-=======
-        values = [('PATH', 'REG_SZ', dest), ('DRP', 'REG_SZ', '0B0A51'),
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
                   ('INSTALLED', 'REG_DWORD', '1'), ('DBVERSION', 'REG_DWORD', '4'),
                   ('NAME', 'REG_SZ', 'VOCALOID%s Library (%s)' % (db_version, name)),
                   ('TIME', 'REG_SZ', 'BHMN74F9ED86FKAB'),

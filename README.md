@@ -212,24 +212,16 @@ Windows permission prompt:
    `<name>.vvd` (voicebank name + CompID, same cipher as VVD Editor Plus). CompIDs are picked
    from pools of known-valid V4 IDs (or crafted with the right language digit) and checked
    against every bank registered on your machine.
-<<<<<<< HEAD
-2. **Install** — copies the package into a per-bank `<CompID>` folder below the selected library root
-   (prefers `Program Files (x86)\VoiceDB`; reuses an existing `Common Files\VOCALOID4\voicelib`
-   folder as a compatibility fallback) and registers that exact folder
-   under `HKLM\SOFTWARE\VOCALOID4\DATABASE41\<CompID>` plus the matching `POCALOID4` mirror.
-   The V3 path is registered under `DATABASE\VOICE3`; the installer writes each bank's full folder path
-   so the editor can locate the `.ddb`, `.ddi`, and `.vvd` files. VOCALOID2/3 editors get their own registry
-   branches; the VOCALOID4FE developer
-=======
-2. **Install** — copies the package to the bank folder (`VoiceDB\<name>` for VOCALOID4, like the
-   commercial banks) and registers it
-   (`HKLM\SOFTWARE\VOCALOID4\DATABASE\<CompID>` + the `POCALOID4` mirror the FE voice loader
-   reads: PATH, NAME, INSTALLED, TIME, KEYS — the same keys every installed bank on a VOCALOID
-   PC carries). VOCALOID2/3 editors get their own registry branches; the VOCALOID4FE developer
-   editor instead gets a `DB_Dev.ini` voice slot pointing at your loose DB.
-   Files + registry need admin rights, so Install/Uninstall run through generated
-   `install.bat`/`uninstall.bat` (same shape as VVD Editor's) launched with a UAC prompt — read
-   them in the package folder first if you like.
+2. **Install** — copies the package into a per-bank `<CompID>` folder below the selected library root. It
+   prefers `Program Files (x86)\VoiceDB` and reuses an existing `Common Files\VOCALOID4\voicelib`
+   directory as a compatibility fallback. Henkan FE registers that exact CompID folder under
+   `HKLM\SOFTWARE\VOCALOID4\DATABASE41\<CompID>` and writes the matching `POCALOID4` mirror.
+   The V3 path is registered under `DATABASE\VOICE3`; the registry path points to the actual folder
+   containing the `.ddb`, `.ddi`, and `.vvd` files. VOCALOID2/3 editors use their own registry branches,
+   while the VOCALOID4FE developer editor gets a `DB_Dev.ini` voice slot pointing at the loose built DB.
+   Files and registry writes require administrator rights, so Install/Uninstall run through generated
+   `install.bat`/`uninstall.bat` scripts with a UAC prompt. You can inspect those scripts in the package
+   folder before running them.
 
 **Import VQM samples** is an optional Convert-page feature for VOCALOID4. Official commercial voicebanks
 commonly expose three sibling folders — `art/`, `sta/` and `vqm/` — with the numbered audio samples in

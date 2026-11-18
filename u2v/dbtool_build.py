@@ -785,17 +785,13 @@ def _build_fresh(exe, seg_folder, db_path, name, dictionary, language, log, boos
     if that gets stuck, again where the DBTool shows. A shown build that trips over pywinauto losing a
     window ("Invalid window handle") starts over once."""
     plan = (['hidden'] if hidden else []) + ['shown', 'shown']
-<<<<<<< HEAD
     source_dictionary = os.path.abspath(dictionary)
     source_seg_dictionary = os.path.abspath(os.path.join(seg_folder, 'dictionary.txt'))
-=======
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
     for k, where in enumerate(plan):
         work = _mkdtemp('dbtool_seg_')
         keep = False
         try:
             _copy_seg(seg_folder, work)
-<<<<<<< HEAD
             work_dictionary = os.path.join(work, 'dictionary.txt')
             if os.path.normcase(source_dictionary) != os.path.normcase(source_seg_dictionary):
                 shutil.copy2(source_dictionary, work_dictionary)
@@ -804,16 +800,6 @@ def _build_fresh(exe, seg_folder, db_path, name, dictionary, language, log, boos
                 return _on_hidden_desktop(
                     lambda desk: _build(exe, work, db_path, name, work_dictionary, language, log, desk))
             return _build(exe, work, db_path, name, work_dictionary, language, log)
-=======
-            if os.path.normcase(dictionary) != os.path.normcase(os.path.join(seg_folder, 'dictionary.txt')):
-                shutil.copy(dictionary, os.path.join(work, 'dictionary.txt'))
-            dictionary = os.path.join(work, 'dictionary.txt')     # a path the DBTool can read
-            _boost(work, boosted)
-            if where == 'hidden':
-                return _on_hidden_desktop(
-                    lambda desk: _build(exe, work, db_path, name, dictionary, language, log, desk))
-            return _build(exe, work, db_path, name, dictionary, language, log)
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
         except DBToolHandoff:
             keep = True                      # the DBTool still uses it: keep it for the user
             raise
