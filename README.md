@@ -226,7 +226,6 @@ Windows permission prompt:
    (`HKLM\SOFTWARE\VOCALOID4\DATABASE\<CompID>` + the `POCALOID4` mirror the FE voice loader
    reads: PATH, NAME, INSTALLED, TIME, KEYS — the same keys every installed bank on a VOCALOID
    PC carries). VOCALOID2/3 editors get their own registry branches; the VOCALOID4FE developer
->>>>>>> 3de923520b35cdd8cb2a82b06e83695ece8b6b86
    editor instead gets a `DB_Dev.ini` voice slot pointing at your loose DB.
    Files + registry need admin rights, so Install/Uninstall run through generated
    `install.bat`/`uninstall.bat` (same shape as VVD Editor's) launched with a UAC prompt — read
